@@ -2,8 +2,20 @@
 (function () {
   const K = window.KONFIG || {};
   const configured = !!(K.SUPABASE_URL && K.SUPABASE_KEY);
+  // Novi "sb_publishable_…" ključevi smiju ići samo u zaglavlje apikey; kao "Bearer" ih
+  // platforma pokušava čitati kao JWT. Zato ga uklanjamo iz Authorization (korisnički JWT ostaje).
+  const isNewKey = /^sb_publishable_/.test(K.SUPABASE_KEY || "");
+  function safeFetch(input, init = {}) {
+    if (isNewKey) {
+      const hd = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
+      if (hd.get("Authorization") === "Bearer " + K.SUPABASE_KEY) hd.delete("Authorization");
+      init = { ...init, headers: hd };
+    }
+    return fetch(input, init);
+  }
   const sb = configured ? window.supabase.createClient(K.SUPABASE_URL, K.SUPABASE_KEY, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    global: { fetch: safeFetch },
   }) : null;
 
   const BUCKET = "slike";

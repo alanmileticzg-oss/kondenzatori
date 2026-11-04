@@ -64,6 +64,6 @@ Cijena je otprilike 0,5–1 cent po slici. Fotografija se šalje Anthropicu na o
 | `index.html`, `js/app.js`, `css/style.css` | sučelje |
 | `js/api.js` | komunikacija sa Supabaseom |
 | `config.js` | adresa i ključ baze, uključivanje očitavanja |
-| `lib/` | supabase-js 2.45.4, qrcode-generator 1.4.4, SheetJS 0.18.5 |
+| `lib/` | supabase-js 2.118.0, qrcode-generator 1.4.4, SheetJS 0.18.5 |
 | `supabase/schema.sql` | tablice, pravila pristupa, pohrana slika |
 | `supabase/functions/ocr/` | očitavanje pločice (Claude API) |

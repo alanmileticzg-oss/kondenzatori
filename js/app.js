@@ -84,7 +84,7 @@
   function viewSetup() {
     document.body.className = "";
     app.innerHTML = `<main class="narrow"><div class="card"><h1>Aplikacija još nije povezana s bazom</h1>
-      <p>U datoteku <code>config.js</code> upišite <b>SUPABASE_URL</b> i <b>SUPABASE_KEY</b> (Supabase → Project Settings → API). Vidi UPUTE.md.</p></div></main>`;
+      <p>U datoteku <code>config.js</code> upišite <b>SUPABASE_URL</b> i <b>SUPABASE_KEY</b> (Supabase → Project Settings → API). Vidi README.md.</p></div></main>`;
   }
 
   function viewLogin() {
