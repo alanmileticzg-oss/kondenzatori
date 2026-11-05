@@ -34,6 +34,7 @@ create table if not exists public.capacitors (
   voltage_v       double precision,          -- normirano u V
   volt_text       text default '',
   volt_kind       text default '',           -- AC / DC
+  frequency_hz    double precision,          -- nazivna frekvencija
   extra           text default '',
   ocr_text        text,
   disposition     text check (disposition in ('teardown','zbrinjavanje','spremanje')),
@@ -41,6 +42,9 @@ create table if not exists public.capacitors (
   location        text default '',
   created_at      timestamptz not null default now()
 );
+-- dopune za baze napravljene ranijom verzijom
+alter table public.capacitors add column if not exists frequency_hz double precision;
+
 create index if not exists capacitors_project_idx on public.capacitors(project_id);
 
 create table if not exists public.events (
@@ -105,7 +109,8 @@ begin
 end $$;
 
 -- ---------- pregledi (views) -------------------------------------------
-create or replace view public.caps_v with (security_invoker = on) as
+drop view if exists public.caps_v;
+create view public.caps_v with (security_invoker = on) as
 select c.*,
        p.name     as project_name,
        p.invoiced as project_invoiced,

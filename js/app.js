@@ -156,6 +156,8 @@
       <label>Serijski broj</label><input name="serial_no" value="${h(c && c.serial_no)}">
       <label>Kapacitet</label><div class="row"><input name="cap_value" inputmode="decimal" value="${h(cv[0])}" placeholder="npr. 100">${sel("cap_unit", Object.keys(CAP_UNITS), cv[1] || "µF")}</div>
       <label>Nazivni napon</label><div class="row"><input name="volt_value" inputmode="decimal" value="${h(vv[0])}" placeholder="npr. 1100">${sel("volt_unit", Object.keys(VOLT_UNITS), vv[1] || "V")}${sel("volt_kind", ["", "AC", "DC"], (c && c.volt_kind) || "")}</div>
+      <label>Nazivna frekvencija [Hz]</label><div class="row"><input name="freq_value" inputmode="decimal" value="${h(c && c.frequency_hz != null ? c.frequency_hz : "")}" placeholder="npr. 50 (prazno za DC)" list="freqs"><span class="u" style="align-self:center;color:var(--mut)">Hz</span></div>
+      <datalist id="freqs"><option value="50"><option value="60"><option value="16.7"><option value="400"></datalist>
       <label>Ostalo s pločice (tolerancija, temp., norma…)</label><input name="extra" value="${h(c && c.extra)}">`;
   }
   function nameplateFromForm(fd) {
@@ -167,6 +169,7 @@
       capacitance_uf: cv == null ? null : +(cv * CAP_UNITS[cu]).toPrecision(12), cap_text: cv == null ? "" : `${String(fd.get("cap_value")).trim()} ${cu}`,
       voltage_v: vv == null ? null : +(vv * VOLT_UNITS[vu]).toPrecision(12), volt_text: vv == null ? "" : `${String(fd.get("volt_value")).trim()} ${vu}`,
       volt_kind: fd.get("volt_kind") || "",
+      frequency_hz: num(fd.get("freq_value")),
     };
   }
   async function uploadAll(capId, code, eventId, input, kind) {
@@ -184,7 +187,7 @@
     code = code.toUpperCase();
     const cap = await API.cap(code);
     if (!cap || cap.status === "rezerviran") return viewRegister(code, cap);
-    const [events, photos, tests, projects] = await Promise.all([API.events(cap.id), API.photos(cap.id), API.testTypes(), API.projects()]);
+    const [events, photos, tests] = await Promise.all([API.events(cap.id), API.photos(cap.id), API.testTypes()]);
     const urls = await API.signedUrls(photos.map((p) => p.path));
     const kv = (k, v) => (v ? `<dt>${k}</dt><dd>${v}</dd>` : "");
     const open = cap.status !== "zavrsen";
@@ -194,10 +197,11 @@
         ${kv("Dolazak", fmtD(cap.arrival_date))}
         ${kv("Proizvođač / tip", h([cap.manufacturer, cap.cap_type].filter(Boolean).join(" ")))}
         ${kv("Ser. br.", h(cap.serial_no))}
-        ${kv("C", h(cap.cap_text))}${kv("U", h([cap.volt_text, cap.volt_kind].filter(Boolean).join(" ")))}
+        ${kv("C", h(cap.cap_text))}${kv("U", h([cap.volt_text, cap.volt_kind].filter(Boolean).join(" ")))}${kv("f", cap.frequency_hz != null ? h(cap.frequency_hz + " Hz") : "")}
         ${kv("Ostalo", h(cap.extra))}
         ${cap.disposition ? kv("Završni korak", `${h(DISPOSITION[cap.disposition])} (${fmtD(cap.disposition_date)})${cap.location ? " — " + h(cap.location) : ""}`) : ""}
       </dl>
+      <p style="margin-top:12px"><a class="btn sec" href="#/k/${h(cap.code)}/uredi">✏️ Uredi podatke</a></p>
       ${photos.length ? `<div class="photos" style="margin-top:12px">${photos.map((p) => `<a href="${h(urls[p.path] || "#")}" target="_blank"><img src="${h(urls[p.path] || "")}" loading="lazy" alt=""></a>`).join("")}</div>` : ""}
       </div>
       ${open ? `
@@ -219,12 +223,7 @@
       <div class="card"><h2>Povijest</h2><ul class="timeline">
         ${events.map((e) => `<li><b>${h(EVENT_KIND[e.kind])}</b>${e.test_type ? ": " + h(e.test_type) : ""}${e.note ? `<div>${h(e.note)}</div>` : ""}<div class="t">${fmtTs(e.ts)} · ${h(e.user_name || "?")}</div></li>`).join("")}
       </ul></div>
-      <details class="card"><summary>Uredi podatke</summary><form id="fEdit">
-        <label>Projekt</label><select name="project_id">${projects.map((p) => `<option value="${p.id}" ${p.id === cap.project_id ? "selected" : ""}>${h(p.name)}</option>`).join("")}</select>
-        <label>Datum dolaska</label><input type="date" name="arrival_date" value="${h(cap.arrival_date || "")}">
-        ${nameplateFields(cap)}
-        <label>Lokacija</label><input name="location" value="${h(cap.location)}">
-        <button class="big">Spremi</button></form></details>`, true);
+      `, true);
     wireFileCounters();
     const reload = (msg) => { flash(msg); viewCap(code).catch(showError); };
 
@@ -262,11 +261,46 @@
       await uploadAll(cap.id, cap.code, ev, inp, "ostalo");
       reload("Dodano.");
     });
-    onSubmit($("#fEdit"), async (fd) => {
-      await API.updateCap(cap.id, { project_id: Number(fd.get("project_id")), arrival_date: fd.get("arrival_date") || null,
-        location: (fd.get("location") || "").trim(), ...nameplateFromForm(fd) });
-      await API.addEvent(cap.id, "izmjena", null, "Podaci izmijenjeni");
-      reload("Spremljeno.");
+  }
+
+  // ------------------------------------------------------------------ uređivanje (ispravak krivog unosa)
+  const EDIT_LABELS = { project_id: "Projekt", arrival_date: "Datum dolaska", manufacturer: "Proizvođač", cap_type: "Tip",
+    serial_no: "Ser. br.", cap_text: "C", volt_text: "U", volt_kind: "AC/DC", frequency_hz: "f [Hz]", extra: "Ostalo",
+    location: "Lokacija", disposition: "Završni korak", disposition_date: "Datum završetka" };
+
+  async function viewEdit(code) {
+    code = code.toUpperCase();
+    const [cap, projects] = await Promise.all([API.cap(code), API.projects()]);
+    if (!cap) { page(`<div class="card">Kondenzator ${h(code)} ne postoji.</div>`, true); return; }
+    const done = cap.status === "zavrsen";
+    page(`<h1><span class="code">${h(cap.code)}</span> — izmjena podataka</h1>
+      <form class="card" id="f">
+        <p class="muted small">Ispravite krivo upisane podatke. Izmjena se bilježi u povijesti (što je promijenjeno, tko i kada).</p>
+        <label>Projekt</label><select name="project_id">${projects.map((p) => `<option value="${p.id}" ${p.id === cap.project_id ? "selected" : ""}>${h(p.name)}</option>`).join("")}</select>
+        <label>Datum dolaska</label><input type="date" name="arrival_date" value="${h(cap.arrival_date || "")}">
+        <h2 style="margin-top:18px">Natpisna pločica</h2>
+        ${nameplateFields(cap)}
+        <label>Lokacija</label><input name="location" value="${h(cap.location)}">
+        ${done ? `<h2 style="margin-top:18px">Završni korak</h2>
+          <div class="row"><div><label>Vrsta</label><select name="disposition">${Object.entries(DISPOSITION).map(([k, v]) => `<option value="${k}" ${k === cap.disposition ? "selected" : ""}>${v}</option>`).join("")}</select></div>
+          <div><label>Datum</label><input type="date" name="disposition_date" value="${h(cap.disposition_date || "")}"></div></div>` : ""}
+        <label>Razlog izmjene (neobavezno)</label><input name="reason" placeholder="npr. krivo očitan napon">
+        <div class="row" style="margin-top:14px"><a class="btn sec" href="#/k/${h(cap.code)}">Odustani</a><button>Spremi izmjene</button></div>
+      </form>`, true);
+    onSubmit($("#f"), async (fd) => {
+      const upd = { project_id: Number(fd.get("project_id")), arrival_date: fd.get("arrival_date") || null,
+        location: (fd.get("location") || "").trim(), ...nameplateFromForm(fd) };
+      if (done) { upd.disposition = fd.get("disposition"); upd.disposition_date = fd.get("disposition_date") || cap.disposition_date; }
+      const pname = (id) => (projects.find((p) => p.id === id) || {}).name || "";
+      const show = (k, v) => (k === "project_id" ? pname(v) : k === "disposition" ? DISPOSITION[v] || "" : v == null || v === "" ? "—" : String(v));
+      const changes = Object.keys(EDIT_LABELS).filter((k) => k in upd && String(upd[k] ?? "") !== String(cap[k] ?? ""))
+        .map((k) => `${EDIT_LABELS[k]}: ${show(k, cap[k])} → ${show(k, upd[k])}`);
+      if (!changes.length) { flash("Nije bilo promjena.", "ok"); return go("#/k/" + cap.code); }
+      await API.updateCap(cap.id, upd);
+      const reason = (fd.get("reason") || "").trim();
+      await API.addEvent(cap.id, "izmjena", null, changes.join("; ") + (reason ? ` (razlog: ${reason})` : ""));
+      flash("Izmjene spremljene.");
+      go("#/k/" + cap.code);
     });
   }
 
@@ -400,11 +434,11 @@
 
   function capTable(rows, urls, withProject) {
     return `<div class="tablewrap"><table>
-      <tr>${urls ? "<th></th>" : ""}<th>Kod</th>${withProject ? "<th>Projekt</th>" : ""}<th>Status</th><th>Dolazak</th><th>Proizvođač / tip</th><th>Ser. br.</th><th>C</th><th>U</th><th>Ispitivanja</th><th>Završni korak</th>${withProject ? "<th>Fakt.</th>" : ""}</tr>
+      <tr>${urls ? "<th></th>" : ""}<th>Kod</th>${withProject ? "<th>Projekt</th>" : ""}<th>Status</th><th>Dolazak</th><th>Proizvođač / tip</th><th>Ser. br.</th><th>C</th><th>U</th><th>f</th><th>Ispitivanja</th><th>Završni korak</th>${withProject ? "<th>Fakt.</th>" : ""}</tr>
       ${rows.map((c) => `<tr>${urls ? `<td>${c.photo && urls[c.photo] ? `<img class="thumb" src="${h(urls[c.photo])}" loading="lazy">` : ""}</td>` : ""}
         <td><a class="code" href="#/k/${h(c.code)}">${h(c.code)}</a></td>${withProject ? `<td><a href="#/p/${c.project_id}">${h(c.project_name)}</a></td>` : ""}
         <td>${pill(c.status)}</td><td class="nw">${fmtD(c.arrival_date)}</td><td>${h([c.manufacturer, c.cap_type].filter(Boolean).join(" "))}</td><td>${h(c.serial_no)}</td>
-        <td class="num">${h(fmtCap(c.capacitance_uf))}</td><td class="num">${h(fmtVolt(c.voltage_v))} ${h(c.volt_kind)}</td><td>${h(c.tests)}</td>
+        <td class="num">${h(fmtCap(c.capacitance_uf))}</td><td class="num">${h(fmtVolt(c.voltage_v))} ${h(c.volt_kind)}</td><td class="num">${c.frequency_hz != null ? h(c.frequency_hz + " Hz") : ""}</td><td>${h(c.tests)}</td>
         <td>${c.disposition ? `${h(DISPOSITION[c.disposition])} <span class="muted small">${fmtD(c.disposition_date)}${c.location ? " · " + h(c.location) : ""}</span>` : ""}</td>
         ${withProject ? `<td>${c.project_invoiced ? '<span class="pill yes">da</span>' : ""}</td>` : ""}</tr>`).join("")
         || `<tr><td colspan="12" class="muted">Nema kondenzatora.</td></tr>`}
@@ -447,7 +481,7 @@
   // ------------------------------------------------------------------ izvoz
   const EXPORT_COLS = [["Kod", "code"], ["Projekt", "project_name"], ["Status", (r) => STATUS[r.status]], ["Datum dolaska", "arrival_date"],
     ["Proizvođač", "manufacturer"], ["Tip", "cap_type"], ["Serijski br.", "serial_no"], ["C [µF]", "capacitance_uf"], ["C (upisano)", "cap_text"],
-    ["U [V]", "voltage_v"], ["U (upisano)", "volt_text"], ["AC/DC", "volt_kind"], ["Ostalo s pločice", "extra"], ["Ispitivanja", "tests"],
+    ["U [V]", "voltage_v"], ["U (upisano)", "volt_text"], ["AC/DC", "volt_kind"], ["f [Hz]", "frequency_hz"], ["Ostalo s pločice", "extra"], ["Ispitivanja", "tests"],
     ["Završni korak", (r) => DISPOSITION[r.disposition] || ""], ["Datum završetka", "disposition_date"], ["Lokacija", "location"],
     ["Projekt fakturiran", (r) => (r.project_invoiced ? "da" : "ne")]];
   const PROJ_COLS = [["Projekt", "name"], ["Naručitelj", "client"], ["Nalog/ponuda", "order_no"], ["Komada", "n"], ["Završeno", "n_zav"],
@@ -558,6 +592,7 @@
     let m;
     try {
       if (path === "/") await viewDashboard();
+      else if ((m = path.match(/^\/k\/([^/]+)\/uredi$/))) await viewEdit(decodeURIComponent(m[1]));
       else if ((m = path.match(/^\/k\/(.+)$/))) {
         if (decodeURIComponent(m[1]).toUpperCase() === "TEST") { flash("QR kod radi — mobitel je otvorio aplikaciju."); return go("#/skeniraj"); }
         await viewCap(decodeURIComponent(m[1]));
