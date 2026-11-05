@@ -378,6 +378,17 @@
   }
 
   // ------------------------------------------------------------------ projekti
+  // boja/stanje projekta: fakturiran > završen > u ispitivanju > nije započet
+  const PSTATE = { novi: "Nije započet", tijek: "U ispitivanju", gotov: "Završen", fakt: "Fakturiran" };
+  function projState(p) {
+    if (p.invoiced) return "fakt";
+    if (p.closed || (+p.n > 0 && +p.n_zav === +p.n)) return "gotov";
+    if (+p.n_isp > 0 || +p.n_zav > 0) return "tijek";
+    return "novi";
+  }
+  const ppill = (p) => { const st = projState(p); return `<span class="ps ps-${st}">${PSTATE[st]}</span>`; };
+  const legend = () => `<div class="legend">${Object.entries(PSTATE).map(([k, v]) => `<span class="ps ps-${k}">${v}</span>`).join("")}</div>`;
+
   async function viewDashboard() {
     const show = params().get("show") || "otvoreni";
     const [rows, all] = await Promise.all([API.projects(show === "svi" ? null : show), API.projects()]);
@@ -388,12 +399,12 @@
       <div class="tabs">${[["otvoreni", "Otvoreni"], ["zakljuceni", "Zaključeni"], ["nefakturirani", "Zaključeni, nefakturirani"], ["svi", "Svi"]]
         .map(([k, v]) => `<a class="${show === k ? "on" : ""}" href="#/?show=${k}">${v}</a>`).join("")}</div>
       <div class="tablewrap"><table>
-        <tr><th>Projekt</th><th>Naručitelj</th><th class="hide-m">Nalog</th><th>Kom.</th><th>Zaprim.</th><th>Ispit.</th><th>Završ.</th><th class="hide-m">Prvi dolazak</th><th>Zaključen</th><th>Fakturiran</th></tr>
-        ${rows.map((r) => `<tr><td><a href="#/p/${r.id}"><b>${h(r.name)}</b></a></td><td>${h(r.client)}</td><td class="hide-m">${h(r.order_no)}</td>
+        <tr><th>Projekt</th><th>Stanje</th><th>Naručitelj</th><th class="hide-m">Nalog</th><th>Kom.</th><th>Zaprim.</th><th>Ispit.</th><th>Završ.</th><th class="hide-m">Prvi dolazak</th><th>Zaključen</th><th>Fakturiran</th></tr>
+        ${rows.map((r) => `<tr class="pr pr-${projState(r)}"><td><a href="#/p/${r.id}"><b>${h(r.name)}</b></a></td><td>${ppill(r)}</td><td>${h(r.client)}</td><td class="hide-m">${h(r.order_no)}</td>
           <td class="num">${r.n}${+r.n_rez ? ` <span class="muted small">(+${r.n_rez} nalj.)</span>` : ""}</td><td class="num">${r.n_zap}</td><td class="num">${r.n_isp}</td><td class="num">${r.n_zav}</td>
           <td class="hide-m">${fmtD(r.first_arrival)}</td><td>${yes(r.closed, fmtD(r.closed_date))}</td><td>${yes(r.invoiced, r.invoice_no || fmtD(r.invoice_date))}</td></tr>`).join("")
-          || `<tr><td colspan="10" class="muted">Nema projekata.</td></tr>`}
-      </table></div>
+          || `<tr><td colspan="11" class="muted">Nema projekata.</td></tr>`}
+      </table></div>${legend()}
       <form class="card" id="f" style="margin-top:14px"><h2>Novi projekt</h2>
         <div class="row"><input name="name" placeholder="Naziv (npr. PROBA1)" required><input name="client" placeholder="Naručitelj"><input name="order_no" placeholder="Broj naloga/ponude"><button class="u">Dodaj</button></div></form>`);
     onSubmit($("#f"), async (fd) => {
@@ -406,7 +417,7 @@
     const [p, caps] = await Promise.all([API.project(id), API.caps({ project: id })]);
     if (!p) { page(`<div class="card">Projekt ne postoji.</div>`); return; }
     const urls = await API.signedUrls(caps.map((c) => c.photo));
-    page(`<h1>${h(p.name)} ${p.closed ? `<span class="pill yes">zaključen</span>` : ""} ${p.invoiced ? `<span class="pill yes">fakturiran</span>` : ""}</h1>
+    page(`<h1>${h(p.name)} ${ppill(p)}</h1>
       <form class="card" id="f">
         <div class="row"><div><label>Naziv</label><input name="name" value="${h(p.name)}" required></div>
           <div><label>Naručitelj</label><input name="client" value="${h(p.client)}"></div>
@@ -419,7 +430,12 @@
           <a class="btn sec" href="#/kondenzatori?project=${p.id}">Filtriraj / izvoz</a>
           <a class="btn sec" href="#" id="xls">Excel</a>
           <a class="btn sec" href="#/ispis?project=${p.id}">Ponovno ispiši naljepnice</a></div></form>
-      ${capTable(caps, urls, false)}`);
+      ${capTable(caps, urls, false)}
+      <details class="card danger-zone" style="margin-top:14px"><summary>Brisanje projekta</summary>
+        <p>Trajno briše projekt <b>${h(p.name)}</b> i <b>sve njegove kondenzatore (${caps.length})</b> s poviješću i fotografijama. Ne može se poništiti.</p>
+        <p class="muted small">Prije brisanja po potrebi preuzmite podatke gumbom „Excel” gore.</p>
+        <form id="fDel"><label>Za potvrdu upišite naziv projekta</label><div class="row"><input name="confirm" autocomplete="off" placeholder="${h(p.name)}"><button class="danger u" style="flex:0 0 auto">Obriši projekt</button></div></form>
+      </details>`);
     onSubmit($("#f"), async (fd) => {
       const closed = !!fd.get("closed"), invoiced = !!fd.get("invoiced");
       await API.updateProject(p.id, {
@@ -430,6 +446,13 @@
       flash("Projekt spremljen."); viewProject(id).catch(showError);
     });
     $("#xls").onclick = (e) => { e.preventDefault(); exportXlsx(caps, `${p.name}_kondenzatori`); };
+    onSubmit($("#fDel"), async (fd) => {
+      if ((fd.get("confirm") || "").trim() !== p.name) throw new Error("Upisani naziv se ne podudara s nazivom projekta.");
+      if (!confirm(`Trajno obrisati projekt ${p.name} i ${caps.length} kondenzatora?`)) return;
+      await API.deleteProject(p.id);
+      flash(`Projekt ${p.name} je obrisan.`);
+      go("#/?show=svi");
+    });
   }
 
   function capTable(rows, urls, withProject) {

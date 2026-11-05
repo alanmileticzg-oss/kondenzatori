@@ -81,6 +81,15 @@
       if (ex) return ex.id;
       return ok(await sb.from("projects").insert(fields).select("id").single()).id;
     },
+    async deleteProject(id) {
+      // najprije fotografije iz pohrane, zatim kondenzatori (povijest i zapisi slika brišu se kaskadno) i projekt
+      const caps = ok(await sb.from("capacitors").select("id").eq("project_id", id)).map((c) => c.id);
+      if (caps.length) {
+        const paths = ok(await sb.from("photos").select("path").in("capacitor_id", caps)).map((p) => p.path);
+        for (let i = 0; i < paths.length; i += 100) ok(await sb.storage.from(BUCKET).remove(paths.slice(i, i + 100)));
+      }
+      ok(await sb.rpc("delete_project", { p_id: id }));
+    },
     async updateProject(id, fields) {
       ok(await sb.from("projects").update(fields).eq("id", id));
     },

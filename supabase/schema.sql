@@ -108,6 +108,18 @@ begin
   end loop;
 end $$;
 
+-- ---------- brisanje projekta (s kondenzatorima; povijest i zapisi slika brišu se kaskadno)
+create or replace function public.delete_project(p_id bigint)
+returns void
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+  delete from public.capacitors where project_id = p_id;
+  delete from public.projects where id = p_id;
+end $$;
+
 -- ---------- pregledi (views) -------------------------------------------
 drop view if exists public.caps_v;
 create view public.caps_v with (security_invoker = on) as
@@ -163,6 +175,8 @@ grant select on public.caps_v, public.projects_v, public.events_v to authenticat
 grant usage on sequence public.cap_code_seq to authenticated;
 revoke execute on function public.reserve_codes(bigint, int) from public, anon;
 grant execute on function public.reserve_codes(bigint, int) to authenticated;
+revoke execute on function public.delete_project(bigint) from public, anon;
+grant execute on function public.delete_project(bigint) to authenticated;
 
 -- ---------- fotografije (Storage) --------------------------------------
 insert into storage.buckets (id, name, public)
@@ -171,5 +185,7 @@ on conflict (id) do nothing;
 
 drop policy if exists "slike citanje" on storage.objects;
 drop policy if exists "slike upis"    on storage.objects;
+drop policy if exists "slike brisanje" on storage.objects;
 create policy "slike citanje" on storage.objects for select to authenticated using (bucket_id = 'slike');
 create policy "slike upis"    on storage.objects for insert to authenticated with check (bucket_id = 'slike');
+create policy "slike brisanje" on storage.objects for delete to authenticated using (bucket_id = 'slike');
