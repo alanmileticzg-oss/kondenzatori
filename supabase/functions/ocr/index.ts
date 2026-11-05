@@ -1,6 +1,7 @@
 // Supabase Edge Function "ocr": očitavanje natpisne pločice preko Claude API-ja.
 // API ključ je tajna na serveru (ANTHROPIC_API_KEY) i nikad ne ide u preglednik.
-// Postavljanje: vidi UPUTE.md → "Očitavanje pločice".
+// Postavljanje: vidi README.md → "Očitavanje pločice". Pri izradi isključiti "Verify JWT"
+// (provjera prijave radi se ovdje, jer ugrađena provjera ne razumije nove ključeve).
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -43,6 +44,12 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const reply = (body: unknown) => new Response(JSON.stringify(body), { headers: { ...CORS, "Content-Type": "application/json" } });
   try {
+    // samo prijavljeni korisnici aplikacije (provjera tokena kod Supabase Auth)
+    const auth = req.headers.get("Authorization") || "";
+    const sbUrl = Deno.env.get("SUPABASE_URL"), sbKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+    const u = await fetch(`${sbUrl}/auth/v1/user`, { headers: { Authorization: auth, apikey: sbKey } });
+    if (!auth.startsWith("Bearer ") || !u.ok) return new Response(JSON.stringify({ ok: false, error: "Niste prijavljeni." }), { status: 401, headers: { ...CORS, "Content-Type": "application/json" } });
+
     const key = Deno.env.get("ANTHROPIC_API_KEY");
     if (!key) return reply({ ok: false, error: "Na serveru nije postavljen ANTHROPIC_API_KEY." });
     const { images } = await req.json();

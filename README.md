@@ -40,6 +40,7 @@ Spremište `kondenzatori` → *Settings → Pages* → *Deploy from a branch* �
 ### 4. Očitavanje pločice (neobavezno)
 
 1. Supabase → **Edge Functions** → *Deploy a new function* → *Via Editor*. Naziv `ocr`, sadržaj iz `supabase/functions/ocr/index.ts`.
+   U *Settings* funkcije isključite **Verify JWT with legacy secret**. Projekt potpisuje prijave novim ključem (ECC), a funkcija prijavu provjerava sama.
 2. **Edge Functions → Secrets:** dodajte `ANTHROPIC_API_KEY` (ključ s console.anthropic.com). Po želji dodajte i `OCR_MODEL`: zadano je `claude-sonnet-5-5`, a `claude-haiku-5-5` je jeftiniji.
 3. U `config.js` postavite `OCR: true`.
 
