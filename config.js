@@ -8,7 +8,7 @@ window.KONFIG = {
   // "publishable" (ili stari "anon public") ključ (smije biti javan — podatke štite pravila u bazi i prijava)
   SUPABASE_KEY: "sb_publishable_EQ9NrbusajPw581xKeDWpQ_f2KqrSRO",
   // Automatsko očitavanje natpisne pločice (treba Edge funkcija "ocr", vidi UPUTE)
-  OCR: true,
+  OCR: false,
   // Prefiks oznaka na naljepnicama (samo prikaz; brojeve dodjeljuje baza)
   NAZIV: "Kondenzatori",
 };
