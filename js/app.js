@@ -69,12 +69,12 @@
   function page(html, narrow) {
     const me = API.me();
     const r = location.hash.split("?")[0];
-    const nav = [["#/", "Projekti"], ["#/kondenzatori", "Kondenzatori"], ["#/naljepnice", "Naljepnice"], ["#/skeniraj", "Skeniranje"], ["#/postavke", "Postavke"]];
+    const nav = [["#/", "Projekti"], ["#/kondenzatori", "Kondenzatori"], ["#/naljepnice", "Naljepnice"], ["#/skeniraj", "Skeniranje"], ...(API.isAdmin() ? [["#/korisnici", "Korisnici"]] : []), ["#/postavke", "Postavke"]];
     let f = sessionStorage.getItem("flash"); sessionStorage.removeItem("flash");
     f = f ? JSON.parse(f) : null;
     document.body.className = "";
     app.innerHTML = `<header><a class="brand" href="#/">⚡ ${h(K.NAZIV || "Kondenzatori")}</a>
-      ${nav.map(([u, t]) => `<a href="${u}" class="${(r || "#/") === u ? "nav-on" : ""}${u === "#/postavke" ? " hide-m" : ""}">${t}</a>`).join("")}
+      ${nav.map(([u, t]) => `<a href="${u}" class="${(r || "#/") === u ? "nav-on" : ""}${u === "#/postavke" || u === "#/korisnici" ? " hide-m" : ""}">${t}</a>`).join("")}
       <a class="who" href="#/postavke">${h(me ? me.name : "")}</a></header>
       <main class="${narrow ? "narrow" : ""}">${f ? `<div class="flash ${h(f[0])}">${h(f[1])}</div>` : ""}${html}</main>`;
     window.scrollTo(0, 0);
@@ -415,36 +415,40 @@
     const [p, caps] = await Promise.all([API.project(id), API.caps({ project: id })]);
     if (!p) { page(`<div class="card">Projekt ne postoji.</div>`); return; }
     const urls = await API.signedUrls(caps.map((c) => c.photo));
+    const adm = API.isAdmin();
+    const dis = adm ? "" : "disabled";
     page(`<h1>${h(p.name)} ${ppill(p)}</h1>
       <form class="card" id="f">
         <div class="row"><div><label>Naziv</label><input name="name" value="${h(p.name)}" required></div>
           <div><label>Naručitelj</label><input name="client" value="${h(p.client)}"></div>
           <div><label>Broj naloga / ponude</label><input name="order_no" value="${h(p.order_no)}"></div></div>
         <div class="row"><div><label><input type="checkbox" name="closed" style="width:auto" ${p.closed ? "checked" : ""}> Zaključen</label><input type="date" name="closed_date" value="${h(p.closed_date || "")}"></div>
-          <div><label><input type="checkbox" name="invoiced" style="width:auto" ${p.invoiced ? "checked" : ""}> Fakturiran</label><input type="date" name="invoice_date" value="${h(p.invoice_date || "")}"></div>
-          <div><label>Broj računa</label><input name="invoice_no" value="${h(p.invoice_no)}"></div></div>
+          <div><label><input type="checkbox" name="invoiced" style="width:auto" ${p.invoiced ? "checked" : ""} ${dis}> Fakturiran</label><input type="date" name="invoice_date" value="${h(p.invoice_date || "")}" ${dis}></div>
+          <div><label>Broj računa</label><input name="invoice_no" value="${h(p.invoice_no)}" ${dis}></div></div>
+        ${adm ? "" : `<p class="muted small">Fakturiranje označava administrator.</p>`}
         <label>Bilješke</label><textarea name="notes">${h(p.notes)}</textarea>
         <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"><button>Spremi projekt</button>
           <a class="btn sec" href="#/kondenzatori?project=${p.id}">Filtriraj / izvoz</a>
           <a class="btn sec" href="#" id="xls">Excel</a>
           <a class="btn sec" href="#/ispis?project=${p.id}">Ponovno ispiši naljepnice</a></div></form>
       ${capTable(caps, urls, false)}
-      <details class="card danger-zone" style="margin-top:14px"><summary>Brisanje projekta</summary>
+      ${!adm ? "" : `<details class="card danger-zone" style="margin-top:14px"><summary>Brisanje projekta</summary>
         <p>Trajno briše projekt <b>${h(p.name)}</b> i <b>sve njegove kondenzatore (${caps.length})</b> s poviješću i fotografijama. Ne može se poništiti.</p>
         <p class="muted small">Prije brisanja po potrebi preuzmite podatke gumbom „Excel” gore.</p>
         <form id="fDel"><label>Za potvrdu upišite naziv projekta</label><div class="row"><input name="confirm" autocomplete="off" placeholder="${h(p.name)}"><button class="danger u" style="flex:0 0 auto">Obriši projekt</button></div></form>
-      </details>`);
+      </details>`}`);
     onSubmit($("#f"), async (fd) => {
       const closed = !!fd.get("closed"), invoiced = !!fd.get("invoiced");
-      await API.updateProject(p.id, {
+      const upd = {
         name: fd.get("name").trim(), client: fd.get("client").trim(), order_no: fd.get("order_no").trim(), notes: fd.get("notes").trim(),
         closed, closed_date: closed ? fd.get("closed_date") || p.closed_date || today() : null,
-        invoiced, invoice_date: invoiced ? fd.get("invoice_date") || p.invoice_date || today() : null, invoice_no: fd.get("invoice_no").trim(),
-      });
+      };
+      if (adm) Object.assign(upd, { invoiced, invoice_date: invoiced ? fd.get("invoice_date") || p.invoice_date || today() : null, invoice_no: (fd.get("invoice_no") || "").trim() });
+      await API.updateProject(p.id, upd);
       flash("Projekt spremljen."); viewProject(id).catch(showError);
     });
     $("#xls").onclick = (e) => { e.preventDefault(); exportXlsx(caps, `${p.name}_kondenzatori`); };
-    onSubmit($("#fDel"), async (fd) => {
+    if (adm) onSubmit($("#fDel"), async (fd) => {
       if ((fd.get("confirm") || "").trim() !== p.name) throw new Error("Upisani naziv se ne podudara s nazivom projekta.");
       if (!confirm(`Trajno obrisati projekt ${p.name} i ${caps.length} kondenzatora?`)) return;
       await API.deleteProject(p.id);
@@ -615,12 +619,82 @@
     $("#pr").onclick = () => print();
   }
 
+  // ------------------------------------------------------------------ korisnici (samo administrator)
+  function genPassword() {
+    const a = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const r = crypto.getRandomValues(new Uint32Array(10));
+    return Array.from(r, (x) => a[x % a.length]).join("");
+  }
+  async function viewUsers() {
+    if (!API.isAdmin()) { page(`<div class="card">Ova stranica je samo za administratore.</div>`, true); return; }
+    const users = (await API.users("list")).users.sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email, "hr"));
+    const created = sessionStorage.getItem("noviKorisnik"); sessionStorage.removeItem("noviKorisnik");
+    const nc = created ? JSON.parse(created) : null;
+    page(`<h1>Korisnici <span class="muted small">(${users.length})</span></h1>
+      ${nc ? `<div class="card" style="border-color:#22a052"><h2>✅ Račun je otvoren</h2><p>Pošaljite kolegi ove podatke:</p>
+        <pre id="cred" style="white-space:pre-wrap;background:#f6f7f9;padding:10px;border-radius:8px">Aplikacija: ${h(baseUrl())}
+E-mail: ${h(nc.email)}
+Privremena lozinka: ${h(nc.password)}
+Nakon prve prijave: Postavke → upisati ime i promijeniti lozinku.</pre>
+        <button class="sec" id="copy">Kopiraj</button></div>` : ""}
+      <form class="card" id="fNew"><h2>Novi korisnik</h2>
+        <div class="row"><div><label>Ime i prezime</label><input name="name" required></div><div><label>E-mail</label><input name="email" type="email" required autocomplete="off"></div></div>
+        <label>Privremena lozinka</label><div class="row"><input name="password" value="${genPassword()}" minlength="8" required autocomplete="off"><button type="button" class="sec u" id="gen" style="flex:0 0 auto">Nova</button></div>
+        <label style="display:flex;gap:8px;align-items:center;color:var(--ink)"><input type="checkbox" name="admin" style="width:auto"> Administrator (može upravljati korisnicima, brisati projekte i označavati fakturiranje)</label>
+        <button class="big">Otvori račun</button></form>
+      <div class="tablewrap"><table>
+        <tr><th>Ime</th><th>E-mail</th><th>Uloga</th><th>Zadnja prijava</th><th>Status</th><th></th></tr>
+        ${users.map((u) => `<tr data-id="${h(u.id)}"><td><b>${h(u.name || "—")}</b>${u.me ? ' <span class="muted small">(vi)</span>' : ""}</td><td>${h(u.email)}</td>
+          <td>${u.admin ? '<span class="ps ps-fakt">administrator</span>' : "korisnik"}</td><td class="nw">${u.last_sign_in_at ? fmtTs(u.last_sign_in_at) : '<span class="muted">nikad</span>'}</td>
+          <td>${u.blocked ? '<span class="pill" style="background:var(--errbg);color:var(--err)">blokiran</span>' : '<span class="pill yes">aktivan</span>'}</td>
+          <td style="white-space:nowrap">${u.me ? "" : `<select class="act" style="width:auto;padding:6px">
+            <option value="">Radnja…</option><option value="password">Nova privremena lozinka</option><option value="name">Promijeni ime</option>
+            <option value="admin">${u.admin ? "Ukloni administratora" : "Postavi za administratora"}</option>
+            <option value="block">${u.blocked ? "Odblokiraj" : "Blokiraj pristup"}</option><option value="delete">Obriši račun</option></select>`}</td></tr>`).join("")}
+      </table></div>
+      <p class="muted small" style="margin-top:10px">Brisanjem računa unosi tog korisnika ostaju u povijesti s njegovim imenom. Blokiranje je privremeno i može se poništiti.</p>`);
+    if (nc) $("#copy").onclick = () => navigator.clipboard.writeText($("#cred").textContent).then(() => { $("#copy").textContent = "Kopirano ✓"; });
+    $("#gen").onclick = () => { $("#fNew").password.value = genPassword(); };
+    onSubmit($("#fNew"), async (fd) => {
+      const body = { name: fd.get("name").trim(), email: fd.get("email").trim(), password: fd.get("password"), admin: !!fd.get("admin") };
+      await API.users("create", body);
+      sessionStorage.setItem("noviKorisnik", JSON.stringify({ email: body.email, password: body.password }));
+      viewUsers().catch(showError);
+    });
+    $$("select.act").forEach((sel) => sel.onchange = async () => {
+      const tr = sel.closest("tr"), u = users.find((x) => x.id === tr.dataset.id), act = sel.value;
+      sel.value = "";
+      try {
+        if (act === "password") {
+          const pw = prompt(`Nova privremena lozinka za ${u.email} (min. 8 znakova):`, genPassword());
+          if (!pw) return;
+          await API.users("password", { id: u.id, password: pw });
+          sessionStorage.setItem("noviKorisnik", JSON.stringify({ email: u.email, password: pw }));
+        } else if (act === "name") {
+          const n = prompt(`Ime i prezime za ${u.email}:`, u.name || ""); if (n == null) return;
+          await API.users("name", { id: u.id, name: n });
+        } else if (act === "admin") {
+          if (!confirm(u.admin ? `Ukloniti administratorska prava korisniku ${u.email}?` : `Dati administratorska prava korisniku ${u.email}?`)) return;
+          await API.users("admin", { id: u.id, admin: !u.admin });
+        } else if (act === "block") {
+          if (!confirm(u.blocked ? `Odblokirati ${u.email}?` : `Blokirati pristup za ${u.email}?`)) return;
+          await API.users("block", { id: u.id, blocked: !u.blocked });
+        } else if (act === "delete") {
+          if (!confirm(`Trajno obrisati račun ${u.email}? Njegovi unosi ostaju u povijesti.`)) return;
+          await API.users("delete", { id: u.id });
+        } else return;
+        if (act !== "password") flash("Spremljeno.");
+        viewUsers().catch(showError);
+      } catch (e) { showError(e); }
+    });
+  }
+
   // ------------------------------------------------------------------ postavke
   async function viewSettings() {
     const tests = await API.testTypes(true);
     const me = API.me();
     page(`<h1>Postavke</h1>
-      <div class="card"><h2>Moj račun</h2><p class="muted small">${h(me.email)}</p>
+      <div class="card"><h2>Moj račun</h2><p class="muted small">${h(me.email)}${API.isAdmin() ? ` · <span class="pill yes">administrator</span> · <a href="#/korisnici">Korisnici</a>` : ""}</p>
         <form id="fName"><label>Ime koje se prikazuje uz unose</label><div class="row"><input name="name" value="${h(me.name)}" required><button class="u">Spremi</button></div></form>
         <p style="margin-top:12px"><a class="btn sec" href="#/lozinka">Promijeni lozinku</a> <button class="sec" id="out">Odjava</button></p></div>
       <div class="card"><h2>Vrste ispitivanja</h2><p class="muted small">Nude se kao gumbi na mobitelu. Isključene ostaju u povijesti.</p>
@@ -657,6 +731,7 @@
       else if (path === "/ispis") await viewPrint();
       else if (path === "/skeniraj") await viewScan();
       else if (path === "/postavke") await viewSettings();
+      else if (path === "/korisnici") await viewUsers();
       else if (path === "/lozinka") viewSetPassword();
       else go("#/");
     } catch (err) {

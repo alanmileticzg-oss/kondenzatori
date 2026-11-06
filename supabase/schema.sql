@@ -189,3 +189,84 @@ drop policy if exists "slike brisanje" on storage.objects;
 create policy "slike citanje" on storage.objects for select to authenticated using (bucket_id = 'slike');
 create policy "slike upis"    on storage.objects for insert to authenticated with check (bucket_id = 'slike');
 create policy "slike brisanje" on storage.objects for delete to authenticated using (bucket_id = 'slike');
+
+-- =====================================================================
+-- DOPUNA: administratori (upravljanje korisnicima, brisanje, fakturiranje)
+-- =====================================================================
+-- ---------- administratori ----------------------------------------------
+create table if not exists public.app_admins (
+  user_id     uuid primary key references auth.users(id) on delete cascade,
+  created_at  timestamptz not null default now()
+);
+alter table public.app_admins enable row level security;
+drop policy if exists "citanje" on public.app_admins;
+create policy "citanje" on public.app_admins for select to authenticated using (true);
+revoke all on public.app_admins from anon;
+grant select on public.app_admins to authenticated;
+
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$ select exists (select 1 from public.app_admins where user_id = auth.uid()) $$;
+revoke execute on function public.is_admin() from public, anon;
+grant execute on function public.is_admin() to authenticated;
+
+-- prvog administratora upisati ručno (zamijeniti e-mail):
+-- insert into public.app_admins(user_id) select id from auth.users where lower(email) = 'ime@domena.hr' on conflict do nothing;
+
+-- ---------- samo administrator: brisanje i fakturiranje ------------------
+do $$
+declare t text;
+begin
+  foreach t in array array['projects','capacitors'] loop
+    execute format('drop policy if exists "prijavljeni" on public.%I', t);
+    execute format('drop policy if exists "citanje" on public.%I', t);
+    execute format('drop policy if exists "upis" on public.%I', t);
+    execute format('drop policy if exists "izmjena" on public.%I', t);
+    execute format('drop policy if exists "brisanje admin" on public.%I', t);
+    execute format('create policy "citanje" on public.%I for select to authenticated using (true)', t);
+    execute format('create policy "upis" on public.%I for insert to authenticated with check (true)', t);
+    execute format('create policy "izmjena" on public.%I for update to authenticated using (true) with check (true)', t);
+    execute format('create policy "brisanje admin" on public.%I for delete to authenticated using (public.is_admin())', t);
+  end loop;
+end $$;
+
+create or replace function public.check_invoice_admin()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if public.is_admin() then return new; end if;
+  if tg_op = 'INSERT' then
+    if new.invoiced then raise exception 'Samo administrator može označiti projekt kao fakturiran.'; end if;
+  elsif new.invoiced is distinct from old.invoiced
+     or new.invoice_no is distinct from old.invoice_no
+     or new.invoice_date is distinct from old.invoice_date then
+    raise exception 'Samo administrator može mijenjati podatke o fakturiranju.';
+  end if;
+  return new;
+end $$;
+drop trigger if exists projects_invoice_admin on public.projects;
+create trigger projects_invoice_admin before insert or update on public.projects
+for each row execute function public.check_invoice_admin();
+
+create or replace function public.delete_project(p_id bigint)
+returns void
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Samo administrator može brisati projekte.';
+  end if;
+  delete from public.capacitors where project_id = p_id;
+  delete from public.projects where id = p_id;
+end $$;
+
+drop policy if exists "slike brisanje" on storage.objects;
+create policy "slike brisanje" on storage.objects for delete to authenticated using (bucket_id = 'slike' and public.is_admin());

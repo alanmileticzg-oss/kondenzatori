@@ -20,6 +20,10 @@
 
   const BUCKET = "slike";
   let me = null;
+  let admin = false;
+  async function loadAdmin() {
+    try { const { data } = await sb.rpc("is_admin"); admin = data === true; } catch (e) { admin = false; }
+  }
 
   function ok({ data, error }) {
     if (error) throw new Error(error.message || String(error));
@@ -39,15 +43,24 @@
       if (!sb) return null;
       const { data } = await sb.auth.getSession();
       me = who(data.session && data.session.user);
+      if (me) await loadAdmin();
       return me;
     },
     me: () => me,
+    isAdmin: () => admin,
+    async users(action, body = {}) {
+      const { data, error } = await sb.functions.invoke("korisnici", { body: { action, ...body } });
+      if (error) throw new Error(error.message || "Funkcija za korisnike nije dostupna.");
+      if (!data || !data.ok) throw new Error((data && data.error) || "Nepoznata greška.");
+      return data;
+    },
     async signIn(email, password) {
       const r = await sb.auth.signInWithPassword({ email, password });
       me = who(ok(r).user);
+      await loadAdmin();
       return me;
     },
-    async signOut() { await sb.auth.signOut(); me = null; },
+    async signOut() { await sb.auth.signOut(); me = null; admin = false; },
     async resetPassword(email, redirectTo) {
       ok(await sb.auth.resetPasswordForEmail(email, { redirectTo }));
     },
