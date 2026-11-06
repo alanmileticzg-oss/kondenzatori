@@ -115,6 +115,16 @@
       }
       return ok(await q);
     },
+    async unusedLabels() {
+      return ok(await sb.from("capacitors").select("code").eq("status", "rezerviran").order("code"));
+    },
+    async statusCounts() {
+      const sts = ["rezerviran", "zaprimljen", "u_ispitivanju", "zavrsen"];
+      const res = await Promise.all(sts.map((st) => sb.from("capacitors").select("id", { count: "exact", head: true }).eq("status", st)));
+      const out = {};
+      res.forEach((r, i) => { if (r.error) throw new Error(r.error.message); out[sts[i]] = r.count || 0; });
+      return out;
+    },
     async capsByCodes(codes) {
       if (!codes.length) return [];
       return ok(await sb.from("caps_v").select("code,project_name").in("code", codes));

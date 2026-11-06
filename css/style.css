@@ -66,19 +66,24 @@ input.ocr,select.ocr{background:#fff7cc;border-color:#e0b400}
 .loading{opacity:.55;pointer-events:none}
 .thumb{width:44px;height:44px;object-fit:cover;border-radius:6px;background:#eee}
 .nav-on{text-decoration:underline;text-underline-offset:5px}
-/* naljepnice */
-body.print{background:#fff}
-.pbar{padding:10px 16px;background:#14213d;color:#fff;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-.pbar a{color:#9fb3d1}.pbar a.on{color:#fff;font-weight:700}
+/* naljepnice — Avery L4773 / L7159 */
+body.print{background:#e9ebee}
+.pbar{padding:10px 16px;background:#14213d;color:#fff;display:flex;gap:12px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:2}
+.pbar a{color:#9fb3d1}
 .pbar button{padding:6px 14px}
-.sheet{display:flex;flex-wrap:wrap;gap:3mm;padding:4mm}
-.lab{border:.2mm dashed #bbb;display:flex;align-items:center;gap:1.5mm;padding:.5mm 2mm .5mm .5mm;break-inside:avoid;overflow:hidden;background:#fff}
-.lab .qr svg{display:block;width:100%;height:100%}
-.lab .t{display:flex;flex-direction:column;justify-content:center;line-height:1.1;min-width:0}
-.lab b{font-family:Consolas,ui-monospace,monospace}
-.lab span{color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-@page{size:A4;margin:8mm}
-@media print{.pbar{display:none}.lab{border-color:#eee}}
+.a4{position:relative;width:210mm;height:297mm;margin:16px auto;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.25);overflow:hidden;break-after:page;page-break-after:always}
+.a4:last-child{break-after:auto;page-break-after:auto}
+.al{position:absolute;display:flex;align-items:center;gap:1.5mm;padding:1.5mm 2.5mm 1.5mm 1.5mm;box-sizing:border-box;outline:.2mm dashed #c9ced6;overflow:hidden}
+.al.empty{outline-color:#eceef1}
+.al.probe{outline:.3mm solid #000}
+.al .qr{flex:0 0 30.5mm;height:30.5mm}
+.al .qr svg{display:block;width:100%;height:100%}
+.al .t{display:flex;flex-direction:column;justify-content:center;gap:1mm;min-width:0;line-height:1.1}
+.al b{font-family:Consolas,ui-monospace,monospace;font-size:15pt;letter-spacing:.3px}
+.al .org{font-size:5.5pt;color:#333;letter-spacing:.3px}
+.al .prj{font-size:7pt;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.al .line{font-size:6.5pt;color:#555;border-bottom:.2mm solid #999;padding-bottom:3.5mm}
+@media print{body.print{background:#fff}.pbar{display:none}.a4{margin:0;box-shadow:none}.al,.al.empty{outline:none}.al.probe{outline:.3mm solid #000}}
 td.num,td.nw{white-space:nowrap}
 /* stanja projekata */
 .ps{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap;vertical-align:middle}

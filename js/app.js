@@ -391,11 +391,9 @@
 
   async function viewDashboard() {
     const show = params().get("show") || "otvoreni";
-    const [rows, all] = await Promise.all([API.projects(show === "svi" ? null : show), API.projects()]);
-    const tot = { rezerviran: 0, zaprimljen: 0, u_ispitivanju: 0, zavrsen: 0 };
-    all.forEach((p) => { tot.rezerviran += +p.n_rez; tot.zaprimljen += +p.n_zap; tot.u_ispitivanju += +p.n_isp; tot.zavrsen += +p.n_zav; });
+    const [rows, tot] = await Promise.all([API.projects(show === "svi" ? null : show), API.statusCounts()]);
     const yes = (b, t) => `<span class="pill ${b ? "yes" : "no"}">${b ? h(t || "da") : "ne"}</span>`;
-    page(`<div class="stats">${Object.entries(STATUS).map(([k, v]) => `<a class="stat" href="#/kondenzatori?status=${k}"><b>${tot[k]}</b><span>${v}</span></a>`).join("")}</div>
+    page(`<div class="stats">${Object.entries(STATUS).map(([k, v]) => `<a class="stat" href="${k === "rezerviran" ? "#/naljepnice" : "#/kondenzatori?status=" + k}"><b>${tot[k]}</b><span>${v}</span></a>`).join("")}</div>
       <div class="tabs">${[["otvoreni", "Otvoreni"], ["zakljuceni", "Zaključeni"], ["nefakturirani", "Zaključeni, nefakturirani"], ["svi", "Svi"]]
         .map(([k, v]) => `<a class="${show === k ? "on" : ""}" href="#/?show=${k}">${v}</a>`).join("")}</div>
       <div class="tablewrap"><table>
@@ -537,25 +535,44 @@
     a.download = `kondenzatori_${stamp()}.csv`; a.click();
   }
 
-  // ------------------------------------------------------------------ naljepnice
+  // ------------------------------------------------------------------ naljepnice (Avery L4773 / L7159: A4, 3 × 8, 63,5 × 33,9 mm)
+  const SHEET = { cols: 3, rows: 8, w: 63.5, h: 33.9, left: 7.25, top: 12.9, pitchX: 66.0, pitchY: 33.9 };
+  const PER_SHEET = SHEET.cols * SHEET.rows;
+  function calib() {
+    try { const c = JSON.parse(localStorage.getItem("kond_kalibracija") || "{}"); return { dx: +c.dx || 0, dy: +c.dy || 0 }; }
+    catch (e) { return { dx: 0, dy: 0 }; }
+  }
+  function saveCalib(c) { try { localStorage.setItem("kond_kalibracija", JSON.stringify(c)); } catch (e) { /* nije važno */ } }
+
   async function viewLabels() {
-    const projects = await API.projects("otvoreni");
-    page(`<h1>Nove naljepnice</h1><form class="card" id="f">
-      <p class="muted">Aplikacija dodijeli sljedeće slobodne brojeve i pripremi stranicu za ispis. Podaci se upisuju pri prvom skeniranju.</p>
-      <label>Projekt</label><select name="project_id"><option value="">— odaberi —</option>${projects.map((p) => `<option value="${p.id}">${h(p.name)}</option>`).join("")}</select>
-      <label>…ili novi projekt</label><input name="new_project" placeholder="npr. PROBA1">
-      <div class="row"><div><label>Broj komada</label><input name="count" type="number" min="1" max="500" value="10"></div>
-      <div><label>Veličina naljepnice</label><select name="size"><option value="20">20 mm (mala)</option><option value="25" selected>25 mm</option><option value="35">35 mm</option><option value="50">50 mm (velika)</option></select></div></div>
-      <button class="big">Dodijeli brojeve i ispiši</button></form>
-      <p class="muted small">Postojeće naljepnice ponovno ispisujete sa stranice projekta ili s popisa kondenzatora.</p>`, true);
+    const unused = await API.unusedLabels();
+    const c = calib();
+    page(`<h1>Naljepnice</h1>
+      <form class="card" id="f"><h2>Nove naljepnice</h2>
+        <p class="muted">Brojevi se dodjeljuju unaprijed, bez projekta. Projekt se odabire pri zaprimanju, kad skenirate naljepnicu na kondenzatoru.</p>
+        <div class="row"><div><label>Broj naljepnica</label><input name="count" type="number" min="1" max="480" value="${PER_SHEET}"></div>
+        <div><label>Počni od mjesta na arku (1–${PER_SHEET})</label><input name="start" type="number" min="1" max="${PER_SHEET}" value="1"></div></div>
+        <p class="muted small">Arak Avery L4773 / L7159: ${PER_SHEET} naljepnica (3 × 8), 63,5 × 33,9 mm. Mjesta se broje s lijeva na desno, odozgo prema dolje — za djelomično iskorišten arak upišite prvo slobodno mjesto.</p>
+        <button class="big">Dodijeli brojeve i ispiši</button></form>
+
+      <div class="card"><h2>Neiskorištene naljepnice <span class="muted small">(${unused.length})</span></h2>
+        ${unused.length ? `<p class="small" style="font-family:ui-monospace,Consolas,monospace;line-height:1.7">${unused.map((u) => h(u.code)).join(" · ")}</p>
+          <a class="btn sec" href="#/ispis?codes=${unused.map((u) => u.code).join(",")}">Ponovno ispiši neiskorištene</a>`
+        : `<p class="muted">Sve ispisane naljepnice su iskorištene.</p>`}</div>
+
+      <form class="card" id="fCal"><h2>Podešavanje pisača</h2>
+        <p class="muted small">Ako ispis nije točno na naljepnicama: ispišite probni arak na običan papir, prislonite ga na arak naljepnica prema svjetlu i upišite pomak. Pozitivno = udesno / prema dolje. Pamti se na ovom računalu.</p>
+        <div class="row"><div><label>Pomak vodoravno [mm]</label><input name="dx" type="number" step="0.1" value="${c.dx}"></div>
+        <div><label>Pomak okomito [mm]</label><input name="dy" type="number" step="0.1" value="${c.dy}"></div></div>
+        <div class="row" style="margin-top:12px"><button class="sec">Spremi pomak</button><a class="btn sec" href="#/ispis?probe=1">Probni arak (okviri)</a></div></form>
+      <p class="muted small">U prozoru za ispis odaberite <b>A4</b>, mjerilo <b>100 % / Stvarna veličina</b> i margine <b>Nema</b>.</p>`, true);
     onSubmit($("#f"), async (fd) => {
-      const newName = (fd.get("new_project") || "").trim();
-      const pid = newName ? await API.createProject({ name: newName }) : Number(fd.get("project_id")) || null;
-      if (!pid) throw new Error("Odaberite ili upišite projekt.");
-      const n = Math.max(1, Math.min(500, parseInt(fd.get("count"), 10) || 1));
-      const codes = await API.reserveCodes(pid, n);
-      go(`#/ispis?codes=${codes.join(",")}&size=${fd.get("size")}`);
+      const n = Math.max(1, Math.min(480, parseInt(fd.get("count"), 10) || 1));
+      const st = Math.max(1, Math.min(PER_SHEET, parseInt(fd.get("start"), 10) || 1));
+      const codes = await API.reserveCodes(null, n);
+      go(`#/ispis?codes=${codes.join(",")}&start=${st}`);
     });
+    onSubmit($("#fCal"), async (fd) => { saveCalib({ dx: num(fd.get("dx")) || 0, dy: num(fd.get("dy")) || 0 }); flash("Pomak spremljen."); viewLabels().catch(showError); });
   }
 
   function qrSvg(text) {
@@ -565,22 +582,36 @@
 
   async function viewPrint() {
     const p = params();
-    const size = Number(p.get("size")) || 25;
-    let items;
-    if (p.get("project")) items = (await API.caps({ project: p.get("project") })).map((c) => ({ code: c.code, project: c.project_name }));
+    const probe = p.get("probe") === "1";
+    let start = Math.max(1, Math.min(PER_SHEET, parseInt(p.get("start"), 10) || 1));
+    let items = [];
+    if (probe) { items = Array.from({ length: PER_SHEET }, (_, i) => ({ probe: i + 1 })); start = 1; }
+    else if (p.get("project")) items = (await API.caps({ project: p.get("project") })).map((c) => ({ code: c.code, project: c.project_name }));
     else {
       const codes = (p.get("codes") || "").split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
       const known = Object.fromEntries((await API.capsByCodes(codes)).map((c) => [c.code, c.project_name]));
       items = codes.map((c) => ({ code: c, project: known[c] || "" }));
     }
-    const q = (s) => { const x = new URLSearchParams(p); x.set("size", s); return "#/ispis?" + x; };
+    const slots = Array(start - 1).fill(null).concat(items);
+    const pages = [];
+    for (let i = 0; i < slots.length; i += PER_SHEET) pages.push(slots.slice(i, i + PER_SHEET));
+    const { dx, dy } = calib();
+    const lab = (it, i) => {
+      const col = i % SHEET.cols, row = Math.floor(i / SHEET.cols);
+      const pos = `left:${(SHEET.left + col * SHEET.pitchX + dx).toFixed(2)}mm;top:${(SHEET.top + row * SHEET.pitchY + dy).toFixed(2)}mm;width:${SHEET.w}mm;height:${SHEET.h}mm`;
+      if (!it) return `<div class="al empty" style="${pos}"></div>`;
+      if (it.probe) return `<div class="al probe" style="${pos}"><div class="t" style="margin:auto;text-align:center"><b>${it.probe}</b><span class="org">PROBNI ISPIS — okvir = rub naljepnice</span></div></div>`;
+      return `<div class="al${probe ? " probe" : ""}" style="${pos}">
+        <div class="qr">${qrSvg(qrUrl(it.code))}</div>
+        <div class="t"><b>${h(it.code)}</b><span class="org">KONČAR INSTITUT · LRS</span>${it.project ? `<span class="prj">${h(it.project)}</span>` : `<span class="line">Projekt:</span>`}</div></div>`;
+    };
     document.body.className = "print";
-    app.innerHTML = `<div class="pbar">${items.length} naljepnica · veličina:
-      ${[20, 25, 35, 50].map((s) => `<a class="${s === size ? "on" : ""}" href="${q(s)}">${s} mm</a>`).join("")}
-      <button id="pr">Ispiši</button><a href="#/">← natrag</a></div>
-      <div class="sheet">${items.map((it) => `<div class="lab" style="width:${(size * 2.1).toFixed(1)}mm;height:${size + 1}mm">
-        <div class="qr" style="width:${size}mm;height:${size}mm">${qrSvg(qrUrl(it.code))}</div>
-        <div class="t"><b style="font-size:${(size * 0.42).toFixed(1)}pt">${h(it.code)}</b><span style="font-size:${(size * 0.28).toFixed(1)}pt">${h(it.project)}</span></div></div>`).join("")}</div>`;
+    app.innerHTML = `<style>@page{size:A4;margin:0}</style>
+      <div class="pbar">${probe ? "Probni arak" : `${items.length} naljepnica`} · ${pages.length} ${pages.length === 1 ? "arak" : "arka"} · Avery L4773 (3 × 8)
+        ${!probe && start > 1 ? ` · od mjesta ${start}` : ""}${dx || dy ? ` · pomak ${dx}/${dy} mm` : ""}
+        <button id="pr">Ispiši</button><a href="#/naljepnice">← natrag</a>
+        <span class="small" style="color:#9fb3d1">A4 · mjerilo 100 % · margine: nema</span></div>
+      ${pages.map((pg) => `<div class="a4">${pg.map(lab).join("")}</div>`).join("")}`;
     $("#pr").onclick = () => print();
   }
 
