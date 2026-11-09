@@ -93,3 +93,11 @@ tr.pr-novi td:first-child{border-left-color:#3b82f6}tr.pr-tijek td:first-child{b
 tr.pr-gotov td:first-child{border-left-color:#22a052}tr.pr-fakt td:first-child{border-left-color:#8b5cf6}
 .legend{display:flex;gap:8px;flex-wrap:wrap;margin:10px 2px;font-size:12px}
 .danger-zone summary{color:var(--err)}
+
+/* polje za datum yyyy/mm/dd s kalendarom */
+.dfield{position:relative;display:block}
+.dfield .dtext{padding-right:44px}
+.dfield .dtext:invalid{border-color:var(--err);background:var(--errbg)}
+.dfield .dpick{position:absolute;right:0;top:0;bottom:0;width:42px;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:18px}
+.dfield .dnat{position:absolute;right:0;top:0;bottom:0;width:42px;padding:0;border:0;opacity:0;cursor:pointer}
+.dfield .dnat:disabled{cursor:default}

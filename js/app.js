@@ -20,6 +20,29 @@
   const p2 = (n) => String(n).padStart(2, "0");
   const fmtTs = (t) => { if (!t) return ""; const d = new Date(t); return `${d.getFullYear()}/${p2(d.getMonth() + 1)}/${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
   const fmtD = (d) => (d ? String(d).slice(0, 10).replace(/-/g, "/") : "");
+  // polje za datum u obliku yyyy/mm/dd (tekst + kalendar); pod imenom name šalje se ISO datum
+  const parseYmd = (v) => {
+    const m = String(v).trim().match(/^(\d{4})[\/.\-](\d{1,2})[\/.\-](\d{1,2})\.?$/);
+    if (!m) return null;
+    const y = +m[1], mo = +m[2], d = +m[3], dt = new Date(y, mo - 1, d);
+    return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d ? `${y}-${p2(mo)}-${p2(d)}` : null;
+  };
+  const dateIn = (name, iso, extra = "") => `<span class="dfield"><input type="text" class="dtext" value="${fmtD(iso)}" placeholder="yyyy/mm/dd" inputmode="numeric" autocomplete="off" ${extra}><span class="dpick" aria-hidden="true">📅</span><input type="date" class="dnat" tabindex="-1" aria-label="Kalendar" value="${iso || ""}" ${extra}><input type="hidden" name="${name}" value="${iso || ""}" ${extra}></span>`;
+  document.addEventListener("input", (e) => {
+    const t = e.target; if (!t.classList || !t.classList.contains("dtext")) return;
+    const w = t.closest(".dfield"), v = t.value.trim(), iso = v ? parseYmd(v) : "";
+    t.setCustomValidity(iso === null ? "Datum upišite u obliku yyyy/mm/dd, npr. 2026/11/09" : "");
+    w.querySelector("input[type=hidden]").value = iso || ""; w.querySelector(".dnat").value = iso || "";
+  });
+  document.addEventListener("change", (e) => {
+    const t = e.target; if (!t.classList || !t.classList.contains("dnat")) return;
+    const w = t.closest(".dfield"), x = w.querySelector(".dtext");
+    w.querySelector("input[type=hidden]").value = t.value; x.value = fmtD(t.value); x.setCustomValidity("");
+  });
+  document.addEventListener("click", (e) => {
+    const t = e.target; if (!t.classList || !t.classList.contains("dnat")) return;
+    try { t.showPicker(); } catch (_) { /* preglednik sam otvara kalendar */ }
+  });
   const num = (s) => { s = String(s == null ? "" : s).replace(/\s/g, "").replace(",", "."); if (!s) return null; const n = Number(s); return isFinite(n) ? n : null; };
   const fmtCap = (uF) => { if (uF == null) return ""; for (const [u, f] of [["F", 1e6], ["mF", 1e3], ["µF", 1], ["nF", 1e-3], ["pF", 1e-6]]) if (Math.abs(uF) >= f) return `${+(uF / f).toPrecision(6)} ${u}`; return `${uF} µF`; };
   const fmtVolt = (V) => (V == null ? "" : V >= 1000 ? `${+(V / 1000).toPrecision(6)} kV` : `${+V.toPrecision(6)} V`);
@@ -279,13 +302,13 @@
       <form class="card" id="f">
         <p class="muted small">Ispravite krivo upisane podatke. Izmjena se bilježi u povijesti (što je promijenjeno, tko i kada).</p>
         <label>Projekt</label><select name="project_id">${projects.map((p) => `<option value="${p.id}" ${p.id === cap.project_id ? "selected" : ""}>${h(p.name)}</option>`).join("")}</select>
-        <label>Datum dolaska</label><input type="date" name="arrival_date" value="${h(cap.arrival_date || "")}">
+        <label>Datum dolaska</label>${dateIn("arrival_date", cap.arrival_date)}
         <h2 style="margin-top:18px">Natpisna pločica</h2>
         ${nameplateFields(cap)}
         <label>Lokacija</label><input name="location" value="${h(cap.location)}">
         ${done ? `<h2 style="margin-top:18px">Završni korak</h2>
           <div class="row"><div><label>Vrsta</label><select name="disposition">${Object.entries(DISPOSITION).map(([k, v]) => `<option value="${k}" ${k === cap.disposition ? "selected" : ""}>${v}</option>`).join("")}</select></div>
-          <div><label>Datum</label><input type="date" name="disposition_date" value="${h(cap.disposition_date || "")}"></div></div>` : ""}
+          <div><label>Datum</label>${dateIn("disposition_date", cap.disposition_date)}</div></div>` : ""}
         <label>Razlog izmjene (neobavezno)</label><input name="reason" placeholder="npr. krivo očitan napon">
         <div class="row" style="margin-top:14px"><a class="btn sec" href="#/k/${h(cap.code)}">Odustani</a><button>Spremi izmjene</button></div>
       </form>`, true);
@@ -314,7 +337,7 @@
         <label>Projekt</label><select name="project_id"><option value="">— odaberi —</option>
           ${projects.map((p) => `<option value="${p.id}" ${cap && cap.project_id === p.id ? "selected" : ""}>${h(p.name)}</option>`).join("")}</select>
         <label>…ili novi projekt</label><input name="new_project" placeholder="npr. PROBA1">
-        <label>Datum dolaska</label><input type="date" name="arrival_date" value="${today()}">
+        <label>Datum dolaska</label>${dateIn("arrival_date", today())}
         <label>Fotografija natpisne pločice</label>${photoInput("plate", true)}
         <div id="ocrbox" class="ocrbox" hidden><div id="previews" class="photos"></div><div id="ocrmsg" class="ocrmsg" hidden></div></div>
         <details id="npdet" style="margin-top:14px" open><summary>Podaci s natpisne pločice</summary>${nameplateFields(null)}</details>
@@ -424,8 +447,8 @@
         <div class="row"><div><label>Naziv</label><input name="name" value="${h(p.name)}" required></div>
           <div><label>Naručitelj</label><input name="client" value="${h(p.client)}"></div>
           <div><label>Broj naloga / ponude</label><input name="order_no" value="${h(p.order_no)}"></div></div>
-        <div class="row"><div><label><input type="checkbox" name="closed" style="width:auto" ${p.closed ? "checked" : ""}> Zaključen</label><input type="date" name="closed_date" value="${h(p.closed_date || "")}"></div>
-          <div><label><input type="checkbox" name="invoiced" style="width:auto" ${p.invoiced ? "checked" : ""} ${dis}> Fakturiran</label><input type="date" name="invoice_date" value="${h(p.invoice_date || "")}" ${dis}></div>
+        <div class="row"><div><label><input type="checkbox" name="closed" style="width:auto" ${p.closed ? "checked" : ""}> Zaključen</label>${dateIn("closed_date", p.closed_date)}</div>
+          <div><label><input type="checkbox" name="invoiced" style="width:auto" ${p.invoiced ? "checked" : ""} ${dis}> Fakturiran</label>${dateIn("invoice_date", p.invoice_date, dis)}</div>
           <div><label>Broj računa</label><input name="invoice_no" value="${h(p.invoice_no)}" ${dis}></div></div>
         ${adm ? "" : `<p class="muted small">Fakturiranje označava administrator.</p>`}
         <label>Bilješke</label><textarea name="notes">${h(p.notes)}</textarea>
