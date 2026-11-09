@@ -104,5 +104,5 @@ tr.pr-gotov td:first-child{border-left-color:#22a052}tr.pr-fakt td:first-child{b
 /* odabir fotografija */
 .vh{position:absolute!important;width:1px!important;height:1px!important;opacity:0;overflow:hidden;pointer-events:none}
 .upl{position:relative}
-.pickrow{display:flex;gap:8px}.pickrow .pick{flex:1;padding:12px}
+.pickrow{display:flex;gap:8px}.pickrow .pick{flex:1;padding:12px;position:relative;overflow:hidden;cursor:pointer;margin:0;color:var(--acc);font-size:15px}
 .picked{display:flex;gap:10px;align-items:center;margin-top:4px}.picked small{color:var(--mut)}.picked .clr{font-size:13px}

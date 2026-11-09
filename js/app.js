@@ -203,11 +203,14 @@
     for (const f of input ? [...(input._files || input.files)] : []) await API.uploadPhoto(capId, code, eventId, await shrink(f), kind);
   }
   // Odabir fotografija: "Slikaj" (kamera) ili "Iz galerije"; odabrane slike skupljaju se u glavno polje name="photos".
+  // Gumbi su <label> oko pravog polja za datoteku — dodir ide izravno na polje (pouzdanije na Androidu/iOS-u od programskog klika).
+  // Galerija namjerno bez "multiple": tada Android nudi sve aplikacije (Galerija, Fotografije, Datoteke); više slika = ponovni odabir.
   const photoInput = (id) => `<div class="upl">
-    <input ${id ? `id="${id}"` : ""} type="file" name="photos" accept="image/*" multiple class="vh" tabindex="-1">
-    <input type="file" accept="image/*" capture="environment" class="vh src" tabindex="-1">
-    <input type="file" accept="image/*" multiple class="vh src" tabindex="-1">
-    <div class="pickrow"><button type="button" class="sec pick" data-i="1">📷 Slikaj</button><button type="button" class="sec pick" data-i="2">🖼️ Iz galerije</button></div>
+    <input ${id ? `id="${id}"` : ""} type="file" name="photos" accept="image/*" multiple class="vh" tabindex="-1" aria-hidden="true">
+    <div class="pickrow">
+      <label class="btn sec pick">📷 Slikaj<input type="file" accept="image/*" capture="environment" class="vh src"></label>
+      <label class="btn sec pick">🖼️ Iz galerije<input type="file" accept="image/*" class="vh src"></label>
+    </div>
     <div class="picked"><small></small><a href="#" class="clr" hidden>ukloni</a></div></div>`;
   function wireFileCounters() {
     $$(".upl").forEach((box) => {
@@ -216,11 +219,10 @@
       const sync = () => {
         main._files = files;
         try { const dt = new DataTransfer(); files.forEach((f) => dt.items.add(f)); main.files = dt.files; } catch (e) { /* stari preglednik */ }
-        box.querySelector("small").textContent = files.length ? `${files.length} ${files.length === 1 ? "slika odabrana" : files.length < 5 ? "slike odabrane" : "slika odabrano"}` : "";
+        box.querySelector("small").textContent = files.length ? `${files.length} ${files.length === 1 ? "slika odabrana" : files.length < 5 ? "slike odabrane" : "slika odabrano"} — za još jednu ponovno dodirnite gumb` : "";
         box.querySelector(".clr").hidden = !files.length;
         main.dispatchEvent(new Event("change"));
       };
-      box.querySelectorAll(".pick").forEach((b) => (b.onclick = () => (b.dataset.i === "1" ? cam : gal).click()));
       [cam, gal].forEach((src) => src.addEventListener("change", () => { files = files.concat([...src.files]); src.value = ""; sync(); }));
       box.querySelector(".clr").onclick = (e) => { e.preventDefault(); files = []; sync(); };
     });
