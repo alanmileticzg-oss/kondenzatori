@@ -16,8 +16,10 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const today = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
-  const fmtTs = (t) => { if (!t) return ""; const d = new Date(t); return d.toLocaleDateString("hr-HR") + " " + d.toLocaleTimeString("hr-HR", { hour: "2-digit", minute: "2-digit" }); };
-  const fmtD = (d) => (d ? new Date(d + "T00:00").toLocaleDateString("hr-HR") : "");
+  // datumi se prikazuju kao yyyy/mm/dd
+  const p2 = (n) => String(n).padStart(2, "0");
+  const fmtTs = (t) => { if (!t) return ""; const d = new Date(t); return `${d.getFullYear()}/${p2(d.getMonth() + 1)}/${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+  const fmtD = (d) => (d ? String(d).slice(0, 10).replace(/-/g, "/") : "");
   const num = (s) => { s = String(s == null ? "" : s).replace(/\s/g, "").replace(",", "."); if (!s) return null; const n = Number(s); return isFinite(n) ? n : null; };
   const fmtCap = (uF) => { if (uF == null) return ""; for (const [u, f] of [["F", 1e6], ["mF", 1e3], ["µF", 1], ["nF", 1e-3], ["pF", 1e-6]]) if (Math.abs(uF) >= f) return `${+(uF / f).toPrecision(6)} ${u}`; return `${uF} µF`; };
   const fmtVolt = (V) => (V == null ? "" : V >= 1000 ? `${+(V / 1000).toPrecision(6)} kV` : `${+V.toPrecision(6)} V`);
@@ -504,14 +506,14 @@
   }
 
   // ------------------------------------------------------------------ izvoz
-  const EXPORT_COLS = [["Kod", "code"], ["Projekt", "project_name"], ["Status", (r) => STATUS[r.status]], ["Datum dolaska", "arrival_date"],
+  const EXPORT_COLS = [["Kod", "code"], ["Projekt", "project_name"], ["Status", (r) => STATUS[r.status]], ["Datum dolaska", (r) => fmtD(r.arrival_date)],
     ["Proizvođač", "manufacturer"], ["Tip", "cap_type"], ["Serijski br.", "serial_no"], ["C [µF]", "capacitance_uf"], ["C (upisano)", "cap_text"],
     ["U [V]", "voltage_v"], ["U (upisano)", "volt_text"], ["AC/DC", "volt_kind"], ["f [Hz]", "frequency_hz"], ["Ostalo s pločice", "extra"], ["Ispitivanja", "tests"],
-    ["Završni korak", (r) => DISPOSITION[r.disposition] || ""], ["Datum završetka", "disposition_date"], ["Lokacija", "location"],
+    ["Završni korak", (r) => DISPOSITION[r.disposition] || ""], ["Datum završetka", (r) => fmtD(r.disposition_date)], ["Lokacija", "location"],
     ["Projekt fakturiran", (r) => (r.project_invoiced ? "da" : "ne")]];
   const PROJ_COLS = [["Projekt", "name"], ["Naručitelj", "client"], ["Nalog/ponuda", "order_no"], ["Komada", "n"], ["Završeno", "n_zav"],
-    ["Zaključen", (r) => (r.closed ? "da" : "ne")], ["Datum zaključenja", "closed_date"], ["Fakturiran", (r) => (r.invoiced ? "da" : "ne")],
-    ["Broj računa", "invoice_no"], ["Datum fakture", "invoice_date"], ["Bilješke", "notes"]];
+    ["Zaključen", (r) => (r.closed ? "da" : "ne")], ["Datum zaključenja", (r) => fmtD(r.closed_date)], ["Fakturiran", (r) => (r.invoiced ? "da" : "ne")],
+    ["Broj računa", "invoice_no"], ["Datum fakture", (r) => fmtD(r.invoice_date)], ["Bilješke", "notes"]];
   const EV_COLS = [["Vrijeme", (r) => fmtTs(r.ts)], ["Kod", "code"], ["Projekt", "project_name"], ["Događaj", (r) => EVENT_KIND[r.kind]],
     ["Ispitivanje", "test_type"], ["Napomena", "note"], ["Upisao", "user_name"]];
   const aoa = (cols, rows) => [cols.map((c) => c[0]), ...rows.map((r) => cols.map(([, k]) => { const v = typeof k === "function" ? k(r) : r[k]; return v == null ? "" : v; }))];
