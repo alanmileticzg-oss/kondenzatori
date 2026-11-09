@@ -570,8 +570,8 @@
   const SHEET = { cols: 3, rows: 8, w: 63.5, h: 33.9, left: 7.25, top: 12.9, pitchX: 66.0, pitchY: 33.9 };
   const PER_SHEET = SHEET.cols * SHEET.rows;
   function calib() {
-    try { const c = JSON.parse(localStorage.getItem("kond_kalibracija") || "{}"); return { dx: +c.dx || 0, dy: +c.dy || 0 }; }
-    catch (e) { return { dx: 0, dy: 0 }; }
+    try { const c = JSON.parse(localStorage.getItem("kond_kalibracija") || "{}"); return { dx: +c.dx || 0, dy: +c.dy || 0, ex: +c.ex || 0, ey: +c.ey || 0 }; }
+    catch (e) { return { dx: 0, dy: 0, ex: 0, ey: 0 }; }
   }
   function saveCalib(c) { try { localStorage.setItem("kond_kalibracija", JSON.stringify(c)); } catch (e) { /* nije važno */ } }
 
@@ -595,7 +595,10 @@
         <p class="muted small">Ako ispis nije točno na naljepnicama: ispišite probni arak na običan papir, prislonite ga na arak naljepnica prema svjetlu i upišite pomak. Pozitivno = udesno / prema dolje. Pamti se na ovom računalu.</p>
         <div class="row"><div><label>Pomak vodoravno [mm]</label><input name="dx" type="number" step="0.1" value="${c.dx}"></div>
         <div><label>Pomak okomito [mm]</label><input name="dy" type="number" step="0.1" value="${c.dy}"></div></div>
-        <div class="row" style="margin-top:12px"><button class="sec">Spremi pomak</button><a class="btn sec" href="#/ispis?probe=1">Probni arak (okviri)</a></div></form>
+        <p class="muted small" style="margin-top:12px">Ako je prvi red dobar, a ostali sve više odstupaju: upišite koliko je <b>zadnji (8.) red</b> odnosno <b>zadnji (3.) stupac</b> pomaknut od naljepnice. Razlika se raspodijeli na sve razmake. Pozitivno = zadnji red treba ići niže / zadnji stupac više udesno.</p>
+        <div class="row"><div><label>Korekcija zadnjeg stupca [mm]</label><input name="ex" type="number" step="0.1" value="${c.ex}"></div>
+        <div><label>Korekcija zadnjeg reda [mm]</label><input name="ey" type="number" step="0.1" value="${c.ey}"></div></div>
+        <div class="row" style="margin-top:12px"><button class="sec">Spremi podešavanje</button><a class="btn sec" href="#/ispis?probe=1">Probni arak (okviri)</a></div></form>
       <p class="muted small">U prozoru za ispis odaberite <b>A4</b>, mjerilo <b>100 % / Stvarna veličina</b> i margine <b>Nema</b>.</p>`, true);
     onSubmit($("#f"), async (fd) => {
       const n = Math.max(1, Math.min(480, parseInt(fd.get("count"), 10) || 1));
@@ -603,7 +606,7 @@
       const codes = await API.reserveCodes(null, n);
       go(`#/ispis?codes=${codes.join(",")}&start=${st}`);
     });
-    onSubmit($("#fCal"), async (fd) => { saveCalib({ dx: num(fd.get("dx")) || 0, dy: num(fd.get("dy")) || 0 }); flash("Pomak spremljen."); viewLabels().catch(showError); });
+    onSubmit($("#fCal"), async (fd) => { saveCalib({ dx: num(fd.get("dx")) || 0, dy: num(fd.get("dy")) || 0, ex: num(fd.get("ex")) || 0, ey: num(fd.get("ey")) || 0 }); flash("Podešavanje spremljeno."); viewLabels().catch(showError); });
   }
 
   function qrSvg(text) {
@@ -626,10 +629,11 @@
     const slots = Array(start - 1).fill(null).concat(items);
     const pages = [];
     for (let i = 0; i < slots.length; i += PER_SHEET) pages.push(slots.slice(i, i + PER_SHEET));
-    const { dx, dy } = calib();
+    const { dx, dy, ex, ey } = calib();
+    const pX = SHEET.pitchX + ex / (SHEET.cols - 1), pY = SHEET.pitchY + ey / (SHEET.rows - 1);
     const lab = (it, i) => {
       const col = i % SHEET.cols, row = Math.floor(i / SHEET.cols);
-      const pos = `left:${(SHEET.left + col * SHEET.pitchX + dx).toFixed(2)}mm;top:${(SHEET.top + row * SHEET.pitchY + dy).toFixed(2)}mm;width:${SHEET.w}mm;height:${SHEET.h}mm`;
+      const pos = `left:${(SHEET.left + col * pX + dx).toFixed(2)}mm;top:${(SHEET.top + row * pY + dy).toFixed(2)}mm;width:${SHEET.w}mm;height:${SHEET.h}mm`;
       if (!it) return `<div class="al empty" style="${pos}"></div>`;
       if (it.probe) return `<div class="al probe" style="${pos}"><div class="t" style="margin:auto;text-align:center"><b>${it.probe}</b><span class="org">PROBNI ISPIS — okvir = rub naljepnice</span></div></div>`;
       return `<div class="al${probe ? " probe" : ""}" style="${pos}">
@@ -639,7 +643,7 @@
     document.body.className = "print";
     app.innerHTML = `<style>@page{size:A4;margin:0}</style>
       <div class="pbar">${probe ? "Probni arak" : `${items.length} naljepnica`} · ${pages.length} ${pages.length === 1 ? "arak" : "arka"} · Avery L4773 (3 × 8)
-        ${!probe && start > 1 ? ` · od mjesta ${start}` : ""}${dx || dy ? ` · pomak ${dx}/${dy} mm` : ""}
+        ${!probe && start > 1 ? ` · od mjesta ${start}` : ""}${dx || dy ? ` · pomak ${dx}/${dy} mm` : ""}${ex || ey ? ` · korekcija ${ex}/${ey} mm` : ""}
         <button id="pr">Ispiši</button><a href="#/naljepnice">← natrag</a>
         <span class="small" style="color:#9fb3d1">A4 · mjerilo 100 % · margine: nema</span></div>
       ${pages.map((pg) => `<div class="a4">${pg.map(lab).join("")}</div>`).join("")}`;
