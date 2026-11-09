@@ -6,7 +6,7 @@
 
   // ------------------------------------------------------------------ konstante
   const STATUS = { rezerviran: "Naljepnica ispisana", zaprimljen: "Zaprimljen", u_ispitivanju: "U ispitivanju", zavrsen: "Završen" };
-  const DISPOSITION = { teardown: "Teardown", zbrinjavanje: "Zbrinjavanje (otpad)", spremanje: "Spremanje" };
+  const DISPOSITION = { teardown: "Teardown", zbrinjavanje: "Zbrinjavanje (otpad)", spremanje: "Spremanje", vraceno: "Vraćeno klijentu" };
   const EVENT_KIND = { dolazak: "Zaprimanje", pokus: "Ispitivanje", napomena: "Napomena", zavrsetak: "Završni korak", izmjena: "Izmjena podataka" };
   const CAP_UNITS = { pF: 1e-6, nF: 1e-3, "µF": 1, mF: 1e3, F: 1e6 };
   const VOLT_UNITS = { V: 1, kV: 1e3 };

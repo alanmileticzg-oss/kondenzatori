@@ -37,7 +37,7 @@ create table if not exists public.capacitors (
   frequency_hz    double precision,          -- nazivna frekvencija
   extra           text default '',
   ocr_text        text,
-  disposition     text check (disposition in ('teardown','zbrinjavanje','spremanje')),
+  disposition     text check (disposition in ('teardown','zbrinjavanje','spremanje','vraceno')),
   disposition_date date,
   location        text default '',
   created_at      timestamptz not null default now()
@@ -270,3 +270,12 @@ end $$;
 
 drop policy if exists "slike brisanje" on storage.objects;
 create policy "slike brisanje" on storage.objects for delete to authenticated using (bucket_id = 'slike' and public.is_admin());
+
+-- DOPUNA: završni korak "Vraćeno klijentu"
+do $$ declare c text; begin
+  for c in select conname from pg_constraint
+           where conrelid = 'public.capacitors'::regclass and contype = 'c' and pg_get_constraintdef(oid) ilike '%disposition%'
+  loop execute format('alter table public.capacitors drop constraint %I', c); end loop;
+end $$;
+alter table public.capacitors add constraint capacitors_disposition_check
+  check (disposition in ('teardown','zbrinjavanje','spremanje','vraceno'));
