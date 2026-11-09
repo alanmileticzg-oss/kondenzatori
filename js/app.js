@@ -16,22 +16,24 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const today = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
-  // datumi se prikazuju kao yyyy/mm/dd
+  // datumi se prikazuju kao dd.mm.yyyy
   const p2 = (n) => String(n).padStart(2, "0");
-  const fmtTs = (t) => { if (!t) return ""; const d = new Date(t); return `${d.getFullYear()}/${p2(d.getMonth() + 1)}/${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
-  const fmtD = (d) => (d ? String(d).slice(0, 10).replace(/-/g, "/") : "");
-  // polje za datum u obliku yyyy/mm/dd (tekst + kalendar); pod imenom name šalje se ISO datum
+  const fmtTs = (t) => { if (!t) return ""; const d = new Date(t); return `${p2(d.getDate())}.${p2(d.getMonth() + 1)}.${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+  const fmtD = (d) => { if (!d) return ""; const [y, m, dd] = String(d).slice(0, 10).split("-"); return `${dd}.${m}.${y}`; };
+  // polje za datum u obliku dd.mm.yyyy (tekst + kalendar); pod imenom name šalje se ISO datum
+  // prihvaća 9.11.2026, 09.11.2026., 9/11/2026, 9,11,2026, 09112026
   const parseYmd = (v) => {
-    const m = String(v).trim().match(/^(\d{4})[\/.\-](\d{1,2})[\/.\-](\d{1,2})\.?$/);
+    v = String(v).trim().replace(/\s+/g, "");
+    const m = v.match(/^(\d{1,2})[.,\/\-](\d{1,2})[.,\/\-](\d{4})\.?$/) || v.match(/^(\d{2})(\d{2})(\d{4})$/);
     if (!m) return null;
-    const y = +m[1], mo = +m[2], d = +m[3], dt = new Date(y, mo - 1, d);
+    const d = +m[1], mo = +m[2], y = +m[3], dt = new Date(y, mo - 1, d);
     return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d ? `${y}-${p2(mo)}-${p2(d)}` : null;
   };
-  const dateIn = (name, iso, extra = "") => `<span class="dfield"><input type="text" class="dtext" value="${fmtD(iso)}" placeholder="yyyy/mm/dd" inputmode="numeric" autocomplete="off" ${extra}><span class="dpick" aria-hidden="true">📅</span><input type="date" class="dnat" tabindex="-1" aria-label="Kalendar" value="${iso || ""}" ${extra}><input type="hidden" name="${name}" value="${iso || ""}" ${extra}></span>`;
+  const dateIn = (name, iso, extra = "") => `<span class="dfield"><input type="text" class="dtext" value="${fmtD(iso)}" placeholder="dd.mm.yyyy" inputmode="decimal" autocomplete="off" ${extra}><span class="dpick" aria-hidden="true">📅</span><input type="date" class="dnat" tabindex="-1" aria-label="Kalendar" value="${iso || ""}" ${extra}><input type="hidden" name="${name}" value="${iso || ""}" ${extra}></span>`;
   document.addEventListener("input", (e) => {
     const t = e.target; if (!t.classList || !t.classList.contains("dtext")) return;
     const w = t.closest(".dfield"), v = t.value.trim(), iso = v ? parseYmd(v) : "";
-    t.setCustomValidity(iso === null ? "Datum upišite u obliku yyyy/mm/dd, npr. 2026/11/09" : "");
+    t.setCustomValidity(iso === null ? "Datum upišite u obliku dd.mm.yyyy, npr. 09.11.2026" : "");
     w.querySelector("input[type=hidden]").value = iso || ""; w.querySelector(".dnat").value = iso || "";
   });
   document.addEventListener("change", (e) => {
