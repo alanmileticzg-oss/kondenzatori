@@ -101,3 +101,8 @@ tr.pr-gotov td:first-child{border-left-color:#22a052}tr.pr-fakt td:first-child{b
 .dfield .dpick{position:absolute;right:0;top:0;bottom:0;width:42px;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:18px}
 .dfield .dnat{position:absolute;right:0;top:0;bottom:0;width:42px;padding:0;border:0;opacity:0;cursor:pointer}
 .dfield .dnat:disabled{cursor:default}
+/* odabir fotografija */
+.vh{position:absolute!important;width:1px!important;height:1px!important;opacity:0;overflow:hidden;pointer-events:none}
+.upl{position:relative}
+.pickrow{display:flex;gap:8px}.pickrow .pick{flex:1;padding:12px}
+.picked{display:flex;gap:10px;align-items:center;margin-top:4px}.picked small{color:var(--mut)}.picked .clr{font-size:13px}

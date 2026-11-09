@@ -200,13 +200,30 @@
     };
   }
   async function uploadAll(capId, code, eventId, input, kind) {
-    for (const f of input ? [...input.files] : []) await API.uploadPhoto(capId, code, eventId, await shrink(f), kind);
+    for (const f of input ? [...(input._files || input.files)] : []) await API.uploadPhoto(capId, code, eventId, await shrink(f), kind);
   }
-  const photoInput = (id, capture) => `<div class="upl"><input ${id ? `id="${id}"` : ""} type="file" name="photos" accept="image/*" ${capture ? 'capture="environment"' : ""} multiple><small></small></div>`;
+  // Odabir fotografija: "Slikaj" (kamera) ili "Iz galerije"; odabrane slike skupljaju se u glavno polje name="photos".
+  const photoInput = (id) => `<div class="upl">
+    <input ${id ? `id="${id}"` : ""} type="file" name="photos" accept="image/*" multiple class="vh" tabindex="-1">
+    <input type="file" accept="image/*" capture="environment" class="vh src" tabindex="-1">
+    <input type="file" accept="image/*" multiple class="vh src" tabindex="-1">
+    <div class="pickrow"><button type="button" class="sec pick" data-i="1">📷 Slikaj</button><button type="button" class="sec pick" data-i="2">🖼️ Iz galerije</button></div>
+    <div class="picked"><small></small><a href="#" class="clr" hidden>ukloni</a></div></div>`;
   function wireFileCounters() {
-    $$("input[type=file]").forEach((i) => i.addEventListener("change", () => {
-      const s = i.parentElement.querySelector("small"); if (s) s.textContent = i.files.length ? i.files.length + " slika odabrano" : "";
-    }));
+    $$(".upl").forEach((box) => {
+      const [main, cam, gal] = box.querySelectorAll("input[type=file]");
+      let files = [];
+      const sync = () => {
+        main._files = files;
+        try { const dt = new DataTransfer(); files.forEach((f) => dt.items.add(f)); main.files = dt.files; } catch (e) { /* stari preglednik */ }
+        box.querySelector("small").textContent = files.length ? `${files.length} ${files.length === 1 ? "slika odabrana" : files.length < 5 ? "slike odabrane" : "slika odabrano"}` : "";
+        box.querySelector(".clr").hidden = !files.length;
+        main.dispatchEvent(new Event("change"));
+      };
+      box.querySelectorAll(".pick").forEach((b) => (b.onclick = () => (b.dataset.i === "1" ? cam : gal).click()));
+      [cam, gal].forEach((src) => src.addEventListener("change", () => { files = files.concat([...src.files]); src.value = ""; sync(); }));
+      box.querySelector(".clr").onclick = (e) => { e.preventDefault(); files = []; sync(); };
+    });
   }
 
   // ------------------------------------------------------------------ kondenzator
@@ -283,7 +300,7 @@
     }
     onSubmit($("#fNote"), async (fd, f) => {
       const inp = f.querySelector("input[type=file]");
-      if (!(fd.get("note") || "").trim() && !inp.files.length) throw new Error("Upišite napomenu ili dodajte sliku.");
+      if (!(fd.get("note") || "").trim() && !(inp._files || inp.files).length) throw new Error("Upišite napomenu ili dodajte sliku.");
       const ev = await API.addEvent(cap.id, "napomena", null, fd.get("note"));
       await uploadAll(cap.id, cap.code, ev, inp, "ostalo");
       reload("Dodano.");
@@ -340,7 +357,7 @@
           ${projects.map((p) => `<option value="${p.id}" ${cap && cap.project_id === p.id ? "selected" : ""}>${h(p.name)}</option>`).join("")}</select>
         <label>…ili novi projekt</label><input name="new_project" placeholder="npr. PROBA1">
         <label>Datum dolaska</label>${dateIn("arrival_date", today())}
-        <label>Fotografija natpisne pločice</label>${photoInput("plate", true)}
+        <label>Fotografija natpisne pločice</label>${photoInput("plate")}
         <div id="ocrbox" class="ocrbox" hidden><div id="previews" class="photos"></div><div id="ocrmsg" class="ocrmsg" hidden></div></div>
         <details id="npdet" style="margin-top:14px" open><summary>Podaci s natpisne pločice</summary>${nameplateFields(null)}</details>
         <label class="confirm" id="confirmwrap" hidden><input type="checkbox" id="confirm"> Provjerio/la sam podatke prema pločici</label>
@@ -351,7 +368,7 @@
     let ocrText = "", ocrFilled = false, run = 0;
 
     plate.addEventListener("change", async () => {
-      const files = [...plate.files];
+      const files = [...(plate._files || plate.files)];
       $("#previews").innerHTML = "";
       files.forEach((f) => { const a = document.createElement("a"); a.href = URL.createObjectURL(f); a.target = "_blank"; const im = document.createElement("img"); im.src = a.href; a.appendChild(im); $("#previews").appendChild(a); });
       $("#ocrbox").hidden = !files.length;
