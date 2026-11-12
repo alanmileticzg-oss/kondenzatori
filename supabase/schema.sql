@@ -18,6 +18,11 @@ create table if not exists public.projects (
   invoice_date  date,
   created_at    timestamptz not null default now()
 );
+-- koraci projekta: Ispitivanja završena → Poslani DRAFT (stupac closed) → Poslani izvještaji → Fakturiran
+alter table public.projects add column if not exists tests_done       boolean not null default false;
+alter table public.projects add column if not exists tests_done_date  date;
+alter table public.projects add column if not exists report_sent      boolean not null default false;
+alter table public.projects add column if not exists report_sent_date date;
 
 create table if not exists public.capacitors (
   id              bigint generated always as identity primary key,
@@ -133,7 +138,8 @@ select c.*,
 from public.capacitors c
 left join public.projects p on p.id = c.project_id;
 
-create or replace view public.projects_v with (security_invoker = on) as
+drop view if exists public.projects_v;
+create view public.projects_v with (security_invoker = on) as
 select p.*,
        count(c.id) filter (where c.status <> 'rezerviran')     as n,
        count(c.id) filter (where c.status = 'rezerviran')      as n_rez,

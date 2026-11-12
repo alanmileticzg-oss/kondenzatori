@@ -87,10 +87,10 @@ body.print{background:#e9ebee}
 td.num,td.nw{white-space:nowrap}
 /* stanja projekata */
 .ps{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap;vertical-align:middle}
-.ps-novi{background:#e3eefc;color:#0b5cab}.ps-tijek{background:#fff1d6;color:#9a5b00}.ps-gotov{background:#e2f4e7;color:#137333}.ps-fakt{background:#efe6fb;color:#6b3fa0}
+.ps-novi{background:#e3eefc;color:#0b5cab}.ps-tijek{background:#fff1d6;color:#9a5b00}.ps-gotov{background:#e2f4e7;color:#137333}.ps-fakt{background:#efe6fb;color:#6b3fa0}.ps-draft{background:#e0f2f1;color:#00695c}.ps-izvj{background:#e8eaf6;color:#303f9f}
 tr.pr td:first-child{border-left:5px solid transparent}
 tr.pr-novi td:first-child{border-left-color:#3b82f6}tr.pr-tijek td:first-child{border-left-color:#f59e0b}
-tr.pr-gotov td:first-child{border-left-color:#22a052}tr.pr-fakt td:first-child{border-left-color:#8b5cf6}
+tr.pr-gotov td:first-child{border-left-color:#22a052}tr.pr-fakt td:first-child{border-left-color:#8b5cf6}tr.pr-draft td:first-child{border-left-color:#14b8a6}tr.pr-izvj td:first-child{border-left-color:#6366f1}
 .legend{display:flex;gap:8px;flex-wrap:wrap;margin:10px 2px;font-size:12px}
 .danger-zone summary{color:var(--err)}
 

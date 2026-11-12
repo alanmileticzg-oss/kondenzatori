@@ -78,10 +78,14 @@
     // ---------------- projekti
     async projects(filter) {
       let q = sb.from("projects_v").select("*").order("created_at", { ascending: false });
-      if (filter === "otvoreni") q = q.eq("closed", false);
-      if (filter === "zakljuceni") q = q.eq("closed", true);
-      if (filter === "nefakturirani") q = q.eq("closed", true).eq("invoiced", false);
+      if (filter === "otvoreni") q = q.eq("invoiced", false);
+      if (filter === "nefakturirani") q = q.eq("report_sent", true).eq("invoiced", false);
+      if (filter === "fakturirani") q = q.eq("invoiced", true);
       return ok(await q);
+    },
+    async clients() {
+      const rows = ok(await sb.from("projects").select("client"));
+      return [...new Set(rows.map((r) => (r.client || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "hr"));
     },
     async project(id) {
       return ok(await sb.from("projects_v").select("*").eq("id", id).maybeSingle());
