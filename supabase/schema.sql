@@ -49,6 +49,13 @@ create table if not exists public.capacitors (
 );
 -- dopune za baze napravljene ranijom verzijom
 alter table public.capacitors add column if not exists frequency_hz double precision;
+-- dodatni podaci s natpisne pločice
+alter table public.capacitors add column if not exists power_kvar  double precision;   -- snaga [kVAr] (AC)
+alter table public.capacitors add column if not exists energy_j    double precision;   -- energija [J] (DC)
+alter table public.capacitors add column if not exists phases      smallint check (phases in (1, 3));  -- broj faza
+alter table public.capacitors add column if not exists bil_kv      text default '';    -- AC/BIL [kV], npr. "50/125"
+alter table public.capacitors add column if not exists int_fuse    boolean;            -- unutarnji osigurači (null = nije navedeno)
+alter table public.capacitors add column if not exists weight_kg   double precision;   -- masa [kg]
 
 create index if not exists capacitors_project_idx on public.capacitors(project_id);
 

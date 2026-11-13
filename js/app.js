@@ -174,29 +174,65 @@
   }
 
   // ------------------------------------------------------------------ natpisna pločica (polja)
+  // Nazivi polja s pločice: engleski / hrvatski (kao na pločicama)
+  const NP = {
+    manufacturer: "Manufacturer / Proizvođač", cap_type: "Type / Tip", serial_no: "Serial No. / Serijski broj",
+    cap: "Capacitance / Kapacitet", volt: "Rated voltage / Nazivni napon", freq: "Rated frequency / Nazivna frekvencija",
+    power: "Rated power / Snaga", energy: "Energy / Energija", phases: "Phases / Broj faza", bil: "AC/BIL / Razina izolacije",
+    fuse: "Internal fuse / Unutarnji osigurači", weight: "Weight / Masa", extra: "Other / Ostalo s pločice",
+  };
+  const fuseTxt = (v) => (v === true ? "Yes / Da" : v === false ? "No / Ne" : "");
+  // Snaga (kVAr) samo za AC, energija (J) samo za DC; dok AC/DC nije odabrano, vidljiva su oba polja.
+  function syncPowerEnergy(form) {
+    const k = form.elements.volt_kind && form.elements.volt_kind.value;
+    const pw = form.querySelector(".np-power"), en = form.querySelector(".np-energy");
+    if (pw) pw.hidden = k === "DC";
+    if (en) en.hidden = k === "AC";
+  }
+  document.addEventListener("change", (e) => { if (e.target.name === "volt_kind" && e.target.form) syncPowerEnergy(e.target.form); });
+
   function nameplateFields(c) {
     const cv = c && c.cap_text ? c.cap_text.split(" ") : ["", "µF"];
     const vv = c && c.volt_text ? c.volt_text.split(" ") : ["", "V"];
+    const v = (x) => h(x == null ? "" : x);
     const sel = (name, opts, cur) => `<select class="u" name="${name}">${opts.map((o) => `<option ${o === cur ? "selected" : ""}>${h(o)}</option>`).join("")}</select>`;
-    return `<div class="row"><div><label>Proizvođač</label><input name="manufacturer" value="${h(c && c.manufacturer)}"></div>
-      <div><label>Tip / oznaka</label><input name="cap_type" value="${h(c && c.cap_type)}"></div></div>
-      <label>Serijski broj</label><input name="serial_no" value="${h(c && c.serial_no)}">
-      <label>Kapacitet</label><div class="row"><input name="cap_value" inputmode="decimal" value="${h(cv[0])}" placeholder="npr. 100">${sel("cap_unit", Object.keys(CAP_UNITS), cv[1] || "µF")}</div>
-      <label>Nazivni napon</label><div class="row"><input name="volt_value" inputmode="decimal" value="${h(vv[0])}" placeholder="npr. 1100">${sel("volt_unit", Object.keys(VOLT_UNITS), vv[1] || "V")}${sel("volt_kind", ["", "AC", "DC"], (c && c.volt_kind) || "")}</div>
-      <label>Nazivna frekvencija [Hz]</label><div class="row"><input name="freq_value" inputmode="decimal" value="${h(c && c.frequency_hz != null ? c.frequency_hz : "")}" placeholder="npr. 50 (prazno za DC)" list="freqs"><span class="u" style="align-self:center;color:var(--mut)">Hz</span></div>
+    const sel2 = (name, opts, cur) => `<select name="${name}">${opts.map(([val, t]) => `<option value="${val}" ${val === cur ? "selected" : ""}>${h(t)}</option>`).join("")}</select>`;
+    const kind = (c && c.volt_kind) || "";
+    const unit = (u) => `<span class="u" style="align-self:center;color:var(--mut)">${u}</span>`;
+    return `<div class="row"><div><label>${NP.manufacturer}</label><input name="manufacturer" value="${v(c && c.manufacturer)}"></div>
+      <div><label>${NP.cap_type}</label><input name="cap_type" value="${v(c && c.cap_type)}"></div></div>
+      <label>${NP.serial_no}</label><input name="serial_no" value="${v(c && c.serial_no)}">
+      <label>${NP.cap}</label><div class="row"><input name="cap_value" inputmode="decimal" value="${h(cv[0])}" placeholder="npr. 100">${sel("cap_unit", Object.keys(CAP_UNITS), cv[1] || "µF")}</div>
+      <label>${NP.volt}</label><div class="row"><input name="volt_value" inputmode="decimal" value="${h(vv[0])}" placeholder="npr. 1100">${sel("volt_unit", Object.keys(VOLT_UNITS), vv[1] || "V")}${sel("volt_kind", ["", "AC", "DC"], kind)}</div>
+      <label>${NP.freq} [Hz]</label><div class="row"><input name="freq_value" inputmode="decimal" value="${v(c && c.frequency_hz)}" placeholder="npr. 50 (prazno za DC)" list="freqs">${unit("Hz")}</div>
       <datalist id="freqs"><option value="50"><option value="60"><option value="16.7"><option value="400"></datalist>
-      <label>Ostalo s pločice (tolerancija, temp., norma…)</label><input name="extra" value="${h(c && c.extra)}">`;
+      <div class="np-power" ${kind === "DC" ? "hidden" : ""}><label>${NP.power} [kVAr] <span class="muted small">(AC)</span></label>
+        <div class="row"><input name="power_kvar" inputmode="decimal" value="${v(c && c.power_kvar)}" placeholder="npr. 500">${unit("kVAr")}</div></div>
+      <div class="np-energy" ${kind === "AC" ? "hidden" : ""}><label>${NP.energy} [J] <span class="muted small">(DC)</span></label>
+        <div class="row"><input name="energy_j" inputmode="decimal" value="${v(c && c.energy_j)}" placeholder="npr. 2485.5">${unit("J")}</div></div>
+      <div class="row" style="align-items:flex-end"><div><label>${NP.phases}</label>${sel2("phases", [["", "—"], ["1", "1"], ["3", "3"]], c && c.phases != null ? String(c.phases) : "")}</div>
+        <div><label>${NP.fuse}</label>${sel2("int_fuse", [["", "—"], ["da", "Yes / Da"], ["ne", "No / Ne"]], c && c.int_fuse === true ? "da" : c && c.int_fuse === false ? "ne" : "")}</div></div>
+      <div class="row" style="align-items:flex-end"><div><label>${NP.bil} [kV]</label><input name="bil_kv" value="${v(c && c.bil_kv)}" placeholder="npr. 50/125"></div>
+        <div><label>${NP.weight} [kg]</label><input name="weight_kg" inputmode="decimal" value="${v(c && c.weight_kg)}" placeholder="npr. 108.2"></div></div>
+      <label>${NP.extra} <span class="muted small">(tolerancija, temp. kat., norma…)</span></label><input name="extra" value="${v(c && c.extra)}">`;
   }
   function nameplateFromForm(fd) {
     const cv = num(fd.get("cap_value")), vv = num(fd.get("volt_value"));
     const cu = fd.get("cap_unit") || "µF", vu = fd.get("volt_unit") || "V";
+    const kind = fd.get("volt_kind") || "", fuse = fd.get("int_fuse") || "", ph = fd.get("phases") || "";
     return {
       manufacturer: (fd.get("manufacturer") || "").trim(), cap_type: (fd.get("cap_type") || "").trim(),
       serial_no: (fd.get("serial_no") || "").trim(), extra: (fd.get("extra") || "").trim(),
       capacitance_uf: cv == null ? null : +(cv * CAP_UNITS[cu]).toPrecision(12), cap_text: cv == null ? "" : `${String(fd.get("cap_value")).trim()} ${cu}`,
       voltage_v: vv == null ? null : +(vv * VOLT_UNITS[vu]).toPrecision(12), volt_text: vv == null ? "" : `${String(fd.get("volt_value")).trim()} ${vu}`,
-      volt_kind: fd.get("volt_kind") || "",
+      volt_kind: kind,
       frequency_hz: num(fd.get("freq_value")),
+      power_kvar: kind === "DC" ? null : num(fd.get("power_kvar")),
+      energy_j: kind === "AC" ? null : num(fd.get("energy_j")),
+      phases: ph ? Number(ph) : null,
+      bil_kv: (fd.get("bil_kv") || "").trim().replace(/\s*kV$/i, ""),
+      int_fuse: fuse === "da" ? true : fuse === "ne" ? false : null,
+      weight_kg: num(fd.get("weight_kg")),
     };
   }
   async function uploadAll(capId, code, eventId, input, kind) {
@@ -241,10 +277,13 @@
       <div class="card"><dl class="kv">
         ${kv("Projekt", `<a href="#/p/${cap.project_id}">${h(cap.project_name)}</a>`)}
         ${kv("Dolazak", fmtD(cap.arrival_date))}
-        ${kv("Proizvođač / tip", h([cap.manufacturer, cap.cap_type].filter(Boolean).join(" ")))}
-        ${kv("Ser. br.", h(cap.serial_no))}
-        ${kv("C", h(cap.cap_text))}${kv("U", h([cap.volt_text, cap.volt_kind].filter(Boolean).join(" ")))}${kv("f", cap.frequency_hz != null ? h(cap.frequency_hz + " Hz") : "")}
-        ${kv("Ostalo", h(cap.extra))}
+        ${kv(NP.manufacturer, h(cap.manufacturer))}${kv(NP.cap_type, h(cap.cap_type))}
+        ${kv(NP.serial_no, h(cap.serial_no))}
+        ${kv(NP.cap, h(cap.cap_text))}${kv(NP.volt, h([cap.volt_text, cap.volt_kind].filter(Boolean).join(" ")))}${kv(NP.freq, cap.frequency_hz != null ? h(cap.frequency_hz + " Hz") : "")}
+        ${kv(NP.power, cap.power_kvar != null ? h(cap.power_kvar + " kVAr") : "")}${kv(NP.energy, cap.energy_j != null ? h(cap.energy_j + " J") : "")}
+        ${kv(NP.phases, cap.phases != null ? h(cap.phases) : "")}${kv(NP.bil, cap.bil_kv ? h(cap.bil_kv + " kV") : "")}
+        ${kv(NP.fuse, fuseTxt(cap.int_fuse))}${kv(NP.weight, cap.weight_kg != null ? h(cap.weight_kg + " kg") : "")}
+        ${kv(NP.extra, h(cap.extra))}
         ${cap.disposition ? kv("Završni korak", `${h(DISPOSITION[cap.disposition])} (${fmtD(cap.disposition_date)})${cap.location ? " — " + h(cap.location) : ""}`) : ""}
       </dl>
       <p style="margin-top:12px"><a class="btn sec" href="#/k/${h(cap.code)}/uredi">✏️ Uredi podatke</a></p>
@@ -311,7 +350,8 @@
 
   // ------------------------------------------------------------------ uređivanje (ispravak krivog unosa)
   const EDIT_LABELS = { project_id: "Projekt", arrival_date: "Datum dolaska", manufacturer: "Proizvođač", cap_type: "Tip",
-    serial_no: "Ser. br.", cap_text: "C", volt_text: "U", volt_kind: "AC/DC", frequency_hz: "f [Hz]", extra: "Ostalo",
+    serial_no: "Ser. br.", cap_text: "C", volt_text: "U", volt_kind: "AC/DC", frequency_hz: "f [Hz]",
+    power_kvar: "Snaga [kVAr]", energy_j: "Energija [J]", phases: "Broj faza", bil_kv: "AC/BIL [kV]", int_fuse: "Unut. osigurači", weight_kg: "Masa [kg]", extra: "Ostalo",
     location: "Lokacija", disposition: "Završni korak", disposition_date: "Datum završetka" };
 
   async function viewEdit(code) {
@@ -338,7 +378,7 @@
         location: (fd.get("location") || "").trim(), ...nameplateFromForm(fd) };
       if (done) { upd.disposition = fd.get("disposition"); upd.disposition_date = fd.get("disposition_date") || cap.disposition_date; }
       const pname = (id) => (projects.find((p) => p.id === id) || {}).name || "";
-      const show = (k, v) => (k === "project_id" ? pname(v) : k === "disposition" ? DISPOSITION[v] || "" : v == null || v === "" ? "—" : String(v));
+      const show = (k, v) => (k === "project_id" ? pname(v) : k === "disposition" ? DISPOSITION[v] || "" : k === "int_fuse" ? fuseTxt(v) || "—" : v == null || v === "" ? "—" : String(v));
       const changes = Object.keys(EDIT_LABELS).filter((k) => k in upd && String(upd[k] ?? "") !== String(cap[k] ?? ""))
         .map((k) => `${EDIT_LABELS[k]}: ${show(k, cap[k])} → ${show(k, upd[k])}`);
       if (!changes.length) { flash("Nije bilo promjena.", "ok"); return go("#/k/" + cap.code); }
@@ -391,6 +431,7 @@
           if (el.tagName === "SELECT" && ![...el.options].some((o) => o.value === v)) continue;
           el.value = v; el.classList.add("ocr"); n++;
         }
+        syncPowerEnergy(form);
         ocrFilled = n > 0; ocrText = r.raw || "";
         $("#confirmwrap").hidden = !ocrFilled;
         msg.className = "ocrmsg " + (ocrFilled ? "ok" : "err");
@@ -511,7 +552,7 @@
 
   function capTable(rows, urls, withProject) {
     return `<div class="tablewrap"><table>
-      <tr>${urls ? "<th></th>" : ""}<th>Kod</th>${withProject ? "<th>Projekt</th>" : ""}<th>Status</th><th>Dolazak</th><th>Proizvođač / tip</th><th>Ser. br.</th><th>C</th><th>U</th><th>f</th><th>Ispitivanja</th><th>Završni korak</th>${withProject ? "<th>Fakt.</th>" : ""}</tr>
+      <tr>${urls ? "<th></th>" : ""}<th>Kod</th>${withProject ? "<th>Projekt</th>" : ""}<th>Status</th><th>Dolazak</th><th>Manufacturer, type /<br>Proizvođač, tip</th><th>S/N /<br>Ser. br.</th><th>C</th><th>U</th><th>f</th><th>Ispitivanja</th><th>Završni korak</th>${withProject ? "<th>Fakt.</th>" : ""}</tr>
       ${rows.map((c) => `<tr>${urls ? `<td>${c.photo && urls[c.photo] ? `<img class="thumb" src="${h(urls[c.photo])}" loading="lazy">` : ""}</td>` : ""}
         <td><a class="code" href="#/k/${h(c.code)}">${h(c.code)}</a></td>${withProject ? `<td><a href="#/p/${c.project_id}">${h(c.project_name)}</a></td>` : ""}
         <td>${pill(c.status)}</td><td class="nw">${fmtD(c.arrival_date)}</td><td>${h([c.manufacturer, c.cap_type].filter(Boolean).join(" "))}</td><td>${h(c.serial_no)}</td>
@@ -557,8 +598,10 @@
 
   // ------------------------------------------------------------------ izvoz
   const EXPORT_COLS = [["Kod", "code"], ["Projekt", "project_name"], ["Status", (r) => STATUS[r.status]], ["Datum dolaska", (r) => fmtD(r.arrival_date)],
-    ["Proizvođač", "manufacturer"], ["Tip", "cap_type"], ["Serijski br.", "serial_no"], ["C [µF]", "capacitance_uf"], ["C (upisano)", "cap_text"],
-    ["U [V]", "voltage_v"], ["U (upisano)", "volt_text"], ["AC/DC", "volt_kind"], ["f [Hz]", "frequency_hz"], ["Ostalo s pločice", "extra"], ["Ispitivanja", "tests"],
+    [NP.manufacturer, "manufacturer"], [NP.cap_type, "cap_type"], [NP.serial_no, "serial_no"], ["Capacitance / Kapacitet [µF]", "capacitance_uf"], ["Capacitance / Kapacitet (upisano)", "cap_text"],
+    ["Rated voltage / Nazivni napon [V]", "voltage_v"], ["Rated voltage / Nazivni napon (upisano)", "volt_text"], ["AC/DC", "volt_kind"], [NP.freq + " [Hz]", "frequency_hz"],
+    [NP.power + " [kVAr]", "power_kvar"], [NP.energy + " [J]", "energy_j"], [NP.phases, "phases"], [NP.bil + " [kV]", "bil_kv"],
+    [NP.fuse, (r) => fuseTxt(r.int_fuse)], [NP.weight + " [kg]", "weight_kg"], [NP.extra, "extra"], ["Ispitivanja", "tests"],
     ["Završni korak", (r) => DISPOSITION[r.disposition] || ""], ["Datum završetka", (r) => fmtD(r.disposition_date)], ["Lokacija", "location"],
     ["Projekt fakturiran", (r) => (r.project_invoiced ? "da" : "ne")]];
   const PROJ_COLS = [["Projekt", "name"], ["Naručitelj", "client"], ["Nalog/ponuda", "order_no"], ["Komada", "n"], ["Završeno", "n_zav"],

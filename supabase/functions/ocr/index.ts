@@ -18,7 +18,14 @@ const PROMPT = `Na slici je natpisna pločica (ili natpis) kondenzatora. Pročit
  "volt_value": "nazivni napon kao broj",
  "volt_unit": "V ili kV",
  "volt_kind": "AC, DC ili prazno (~ znači AC, = ili ⎓ znači DC)",
- "extra": "ostali važni podaci kratko, odvojeni ' · ' (tolerancija, frekvencija, snaga kvar, temp. razred, norma, godina, broj faza, unutarnji otpornik, masa...)",
+ "freq_value": "nazivna frekvencija u Hz kao broj (npr. \"50\"), prazno ako nije navedena",
+ "power_kvar": "nazivna snaga u kVAr kao broj (ako piše u var ili MVAr, preračunaj u kVAr)",
+ "energy_j": "energija u J (joule) kao broj (ako piše u kJ, preračunaj u J)",
+ "phases": "broj faza: \"1\" ili \"3\" (1 Phase / single phase = 1, 3 Phase / three phase = 3)",
+ "bil_kv": "razina izolacije AC/BIL u kV kako piše, bez jedinice (npr. \"50/125\")",
+ "int_fuse": "unutarnji osigurači (Int. Fuse, internal fuses): \"da\", \"ne\" ili prazno",
+ "weight_kg": "masa (Weight, Mass) u kg kao broj",
+ "extra": "ostali važni podaci kratko, odvojeni ' · ' (tolerancija/DEV, temp. kategorija, dielektrik/punjenje, uređaj za pražnjenje, norma, datum proizvodnje, Rel.ID...) — bez podataka koji već imaju svoje polje",
  "notes": "na hrvatskom: što je nečitko ili nesigurno; prazno ako je sve jasno"
 }
 Pravila: ne izmišljaj — ako podatak ne postoji ili je nečitak, ostavi prazan string.
@@ -36,6 +43,11 @@ function clean(d: Record<string, unknown>) {
     cap_value: num(d.cap_value), cap_unit: capUnit,
     volt_value: num(d.volt_value), volt_unit: g("volt_unit").toLowerCase() === "kv" ? "kV" : (num(d.volt_value) ? "V" : ""),
     volt_kind: vk.includes("AC") || vk.includes("~") ? "AC" : vk.includes("DC") ? "DC" : "",
+    freq_value: num(d.freq_value), power_kvar: num(d.power_kvar), energy_j: num(d.energy_j),
+    phases: ["1", "3"].includes(num(d.phases)) ? num(d.phases) : "",
+    bil_kv: g("bil_kv").replace(/\s*kV$/i, ""),
+    int_fuse: /^(da|yes|y|ja)$/i.test(g("int_fuse")) ? "da" : /^(ne|no|n|nein)$/i.test(g("int_fuse")) ? "ne" : "",
+    weight_kg: num(d.weight_kg),
     extra: g("extra"),
   };
 }
@@ -59,7 +71,7 @@ Deno.serve(async (req) => {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: Deno.env.get("OCR_MODEL") || "claude-sonnet-5-5", max_tokens: 800, messages: [{ role: "user", content }] }),
+      body: JSON.stringify({ model: Deno.env.get("OCR_MODEL") || "claude-sonnet-5-5", max_tokens: 1200, messages: [{ role: "user", content }] }),
     });
     const j = await r.json();
     if (!r.ok) return reply({ ok: false, error: j?.error?.message || `Claude API ${r.status}` });
