@@ -106,3 +106,9 @@ tr.pr-gotov td:first-child{border-left-color:#22a052}tr.pr-fakt td:first-child{b
 .upl{position:relative}
 .pickrow{display:flex;gap:8px}.pickrow .pick{flex:1;padding:12px;position:relative;overflow:hidden;cursor:pointer;margin:0;color:var(--acc);font-size:15px}
 .picked{display:flex;gap:10px;align-items:center;margin-top:4px}.picked small{color:var(--mut)}.picked .clr{font-size:13px}
+/* planirani početak ispitivanja */
+th.plan{background:#fff4d6;color:#8a5a00}
+td.plan{background:#fffaeb;font-weight:600;white-space:nowrap}
+td.plan.plan-soon{background:#ffe9c2;color:#9a5b00}
+td.plan.plan-late{background:#fde2e1;color:#b42318}
+.planbox input.dtext{background:#fffaeb;border-color:#f0c36d;font-weight:600}
