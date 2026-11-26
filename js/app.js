@@ -479,6 +479,12 @@
     return "novi";
   }
   const ppill = (p) => { const st = projState(p); return `<span class="ps ps-${st}">${PSTATE[st]}</span>`; };
+  // planirani početak ispitivanja: istaknut stupac; crveno ako je datum prošao, a ispitivanja nisu počela; narančasto ako je unutar 7 dana
+  function planCls(p) {
+    if (!p.planned_start || projState(p) !== "novi") return "";
+    const days = (new Date(p.planned_start) - new Date(today())) / 864e5;
+    return days < 0 ? " plan-late" : days <= 7 ? " plan-soon" : "";
+  }
   const legend = () => `<div class="legend">${Object.entries(PSTATE).map(([k, v]) => `<span class="ps ps-${k}">${v}</span>`).join("")}</div>`;
 
   async function viewDashboard() {
@@ -489,16 +495,17 @@
       <div class="tabs">${[["otvoreni", "Otvoreni"], ["nefakturirani", "Za fakturiranje"], ["fakturirani", "Fakturirani"], ["svi", "Svi"]]
         .map(([k, v]) => `<a class="${show === k ? "on" : ""}" href="#/?show=${k}">${v}</a>`).join("")}</div>
       <div class="tablewrap"><table>
-        <tr><th>Projekt</th><th>Stanje</th><th>Naručitelj</th><th class="hide-m">Nalog</th><th>Kom.</th><th>Zaprim.</th><th>Ispit.</th><th>Završ.</th><th class="hide-m">Prvi dolazak</th><th class="hide-m">Isp. završena</th><th class="hide-m">DRAFT</th><th class="hide-m">Izvještaji</th><th>Fakturiran</th></tr>
+        <tr><th>Projekt</th><th>Stanje</th><th>Naručitelj</th><th class="hide-m">Nalog</th><th class="plan">Planirani početak ispitivanja</th><th>Kom.</th><th>Zaprim.</th><th>Ispit.</th><th>Završ.</th><th class="hide-m">Prvi dolazak</th><th class="hide-m">Isp. završena</th><th class="hide-m">DRAFT</th><th class="hide-m">Izvještaji</th><th>Fakturiran</th></tr>
         ${rows.map((r) => `<tr class="pr pr-${projState(r)}"><td><a href="#/p/${r.id}"><b>${h(r.name)}</b></a></td><td>${ppill(r)}</td><td>${h(r.client)}</td><td class="hide-m">${h(r.order_no)}</td>
-          <td class="num">${r.n}${+r.n_rez ? ` <span class="muted small">(+${r.n_rez} nalj.)</span>` : ""}</td><td class="num">${r.n_zap}</td><td class="num">${r.n_isp}</td><td class="num">${r.n_zav}</td>
+          <td class="plan${planCls(r)}">${fmtD(r.planned_start)}</td><td class="num">${r.n}${+r.n_rez ? ` <span class="muted small">(+${r.n_rez} nalj.)</span>` : ""}</td><td class="num">${r.n_zap}</td><td class="num">${r.n_isp}</td><td class="num">${r.n_zav}</td>
           <td class="hide-m">${fmtD(r.first_arrival)}</td>${PSTEPS.map(([f, d], i) => `<td${i < 3 ? ' class="hide-m"' : ""}>${yes(r[f], fmtD(r[d]))}</td>`).join("")}</tr>`).join("")
-          || `<tr><td colspan="13" class="muted">Nema projekata.</td></tr>`}
+          || `<tr><td colspan="14" class="muted">Nema projekata.</td></tr>`}
       </table></div>${legend()}
       <form class="card" id="f" style="margin-top:14px"><h2>Novi projekt</h2>
-        <div class="row"><input name="name" placeholder="Naziv (npr. PROBA1)" required><input name="client" placeholder="Naručitelj" list="clients" autocomplete="off">${clientList(clients)}<input name="order_no" placeholder="Broj naloga/ponude"><button class="u">Dodaj</button></div></form>`);
+        <div class="row"><input name="name" placeholder="Naziv (npr. PROBA1)" required><input name="client" placeholder="Naručitelj" list="clients" autocomplete="off">${clientList(clients)}<input name="order_no" placeholder="Broj naloga/ponude"></div>
+        <div class="row" style="margin-top:8px;align-items:flex-end"><div><label>Planirani početak ispitivanja</label>${dateIn("planned_start", null)}</div><button class="u" style="flex:0 0 auto">Dodaj</button></div></form>`);
     onSubmit($("#f"), async (fd) => {
-      const id = await API.createProject({ name: fd.get("name").trim(), client: fd.get("client").trim(), order_no: fd.get("order_no").trim() });
+      const id = await API.createProject({ name: fd.get("name").trim(), client: fd.get("client").trim(), order_no: fd.get("order_no").trim(), planned_start: fd.get("planned_start") || null });
       go("#/p/" + id);
     });
   }
@@ -515,7 +522,8 @@
       <form class="card" id="f">
         <div class="row"><div><label>Naziv</label><input name="name" value="${h(p.name)}" required></div>
           <div><label>Naručitelj</label><input name="client" value="${h(p.client)}" list="clients" autocomplete="off">${clientList(clients)}</div>
-          <div><label>Broj naloga / ponude</label><input name="order_no" value="${h(p.order_no)}"></div></div>
+          <div><label>Broj naloga / ponude</label><input name="order_no" value="${h(p.order_no)}"></div>
+          <div class="planbox"><label>Planirani početak ispitivanja</label>${dateIn("planned_start", p.planned_start)}</div></div>
         <div class="row">${PSTEPS.map(([f, d, lbl]) => { const x = f === "invoiced" ? dis : "";
           return `<div><label><input type="checkbox" name="${f}" style="width:auto" ${p[f] ? "checked" : ""} ${x}> ${lbl}</label>${dateIn(d, p[d], x)}</div>`; }).join("")}</div>
         ${adm ? "" : `<p class="muted small">Fakturiranje označava administrator.</p>`}
@@ -531,7 +539,7 @@
         <form id="fDel"><label>Za potvrdu upišite naziv projekta</label><div class="row"><input name="confirm" autocomplete="off" placeholder="${h(p.name)}"><button class="danger u" style="flex:0 0 auto">Obriši projekt</button></div></form>
       </details>`}`);
     onSubmit($("#f"), async (fd) => {
-      const upd = { name: fd.get("name").trim(), client: fd.get("client").trim(), order_no: fd.get("order_no").trim(), notes: fd.get("notes").trim() };
+      const upd = { name: fd.get("name").trim(), client: fd.get("client").trim(), order_no: fd.get("order_no").trim(), planned_start: fd.get("planned_start") || null, notes: fd.get("notes").trim() };
       for (const [f, d] of PSTEPS) {
         if (f === "invoiced" && !adm) continue;
         const on = !!fd.get(f);
@@ -604,7 +612,7 @@
     [NP.fuse, (r) => fuseTxt(r.int_fuse)], [NP.weight + " [kg]", "weight_kg"], [NP.extra, "extra"], ["Ispitivanja", "tests"],
     ["Završni korak", (r) => DISPOSITION[r.disposition] || ""], ["Datum završetka", (r) => fmtD(r.disposition_date)], ["Lokacija", "location"],
     ["Projekt fakturiran", (r) => (r.project_invoiced ? "da" : "ne")]];
-  const PROJ_COLS = [["Projekt", "name"], ["Naručitelj", "client"], ["Nalog/ponuda", "order_no"], ["Komada", "n"], ["Završeno", "n_zav"],
+  const PROJ_COLS = [["Projekt", "name"], ["Naručitelj", "client"], ["Nalog/ponuda", "order_no"], ["Planirani početak ispitivanja", (r) => fmtD(r.planned_start)], ["Komada", "n"], ["Završeno", "n_zav"],
     ...PSTEPS.flatMap(([f, d, lbl]) => [[lbl, (r) => (r[f] ? "da" : "ne")], [`${lbl} — datum`, (r) => fmtD(r[d])]]), ["Bilješke", "notes"]];
   const EV_COLS = [["Vrijeme", (r) => fmtTs(r.ts)], ["Kod", "code"], ["Projekt", "project_name"], ["Događaj", (r) => EVENT_KIND[r.kind]],
     ["Ispitivanje", "test_type"], ["Napomena", "note"], ["Upisao", "user_name"]];
