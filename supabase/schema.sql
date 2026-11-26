@@ -23,6 +23,7 @@ alter table public.projects add column if not exists tests_done       boolean no
 alter table public.projects add column if not exists tests_done_date  date;
 alter table public.projects add column if not exists report_sent      boolean not null default false;
 alter table public.projects add column if not exists report_sent_date date;
+alter table public.projects add column if not exists planned_start    date;   -- planirani početak ispitivanja
 
 create table if not exists public.capacitors (
   id              bigint generated always as identity primary key,
