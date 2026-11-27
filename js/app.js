@@ -494,7 +494,7 @@
     page(`<div class="stats">${Object.entries(STATUS).map(([k, v]) => `<a class="stat" href="${k === "rezerviran" ? "#/naljepnice" : "#/kondenzatori?status=" + k}"><b>${tot[k]}</b><span>${v}</span></a>`).join("")}</div>
       <div class="tabs">${[["otvoreni", "Otvoreni"], ["nefakturirani", "Za fakturiranje"], ["fakturirani", "Fakturirani"], ["svi", "Svi"]]
         .map(([k, v]) => `<a class="${show === k ? "on" : ""}" href="#/?show=${k}">${v}</a>`).join("")}</div>
-      <div class="tablewrap"><table>
+      <div class="tablewrap"><table class="compact">
         <tr><th>Projekt</th><th>Stanje</th><th>Naručitelj</th><th class="hide-m">Nalog</th><th class="plan">Planirani početak ispitivanja</th><th>Kom.</th><th>Zaprim.</th><th>Ispit.</th><th>Završ.</th><th class="hide-m">Prvi dolazak</th><th class="hide-m">Isp. završena</th><th class="hide-m">DRAFT</th><th class="hide-m">Izvještaji</th><th>Fakturiran</th></tr>
         ${rows.map((r) => `<tr class="pr pr-${projState(r)}"><td><a href="#/p/${r.id}"><b>${h(r.name)}</b></a></td><td>${ppill(r)}</td><td>${h(r.client)}</td><td class="hide-m">${h(r.order_no)}</td>
           <td class="plan${planCls(r)}">${fmtD(r.planned_start)}</td><td class="num">${r.n}${+r.n_rez ? ` <span class="muted small">(+${r.n_rez} nalj.)</span>` : ""}</td><td class="num">${r.n_zap}</td><td class="num">${r.n_isp}</td><td class="num">${r.n_zav}</td>
