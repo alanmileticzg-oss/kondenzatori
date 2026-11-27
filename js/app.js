@@ -532,7 +532,7 @@
           <a class="btn sec" href="#/kondenzatori?project=${p.id}">Filtriraj / izvoz</a>
           <a class="btn sec" href="#" id="xls">Excel</a>
           <a class="btn sec" href="#/ispis?project=${p.id}">Ponovno ispiši naljepnice</a></div></form>
-      ${capTable(caps, urls, false)}
+      ${capTable(caps, urls, false, true)}
       ${!adm ? "" : `<details class="card danger-zone" style="margin-top:14px"><summary>Brisanje projekta</summary>
         <p>Trajno briše projekt <b>${h(p.name)}</b> i <b>sve njegove kondenzatore (${caps.length})</b> s poviješću i fotografijama. Ne može se poništiti.</p>
         <p class="muted small">Prije brisanja po potrebi preuzmite podatke gumbom „Excel” gore.</p>
@@ -549,6 +549,7 @@
       flash("Projekt spremljen."); viewProject(id).catch(showError);
     });
     $("#xls").onclick = (e) => { e.preventDefault(); exportXlsx(caps, `${p.name}_kondenzatori`); };
+    wireBulk((msg) => { flash(msg); viewProject(id).catch(showError); });
     if (adm) onSubmit($("#fDel"), async (fd) => {
       if ((fd.get("confirm") || "").trim() !== p.name) throw new Error("Upisani naziv se ne podudara s nazivom projekta.");
       if (!confirm(`Trajno obrisati projekt ${p.name} i ${caps.length} kondenzatora?`)) return;
@@ -558,17 +559,49 @@
     });
   }
 
-  function capTable(rows, urls, withProject) {
+  // kondenzatori kojima se može grupno dati završni korak (zaprimljeni ili u ispitivanju)
+  const canFinish = (c) => c.status === "zaprimljen" || c.status === "u_ispitivanju";
+  function capTable(rows, urls, withProject, sel = false) {
+    sel = sel && rows.some(canFinish);
     return `<div class="tablewrap"><table>
-      <tr>${urls ? "<th></th>" : ""}<th>Kod</th>${withProject ? "<th>Projekt</th>" : ""}<th>Status</th><th>Dolazak</th><th>Manufacturer, type /<br>Proizvođač, tip</th><th>S/N /<br>Ser. br.</th><th>C</th><th>U</th><th>f</th><th>Ispitivanja</th><th>Završni korak</th>${withProject ? "<th>Fakt.</th>" : ""}</tr>
-      ${rows.map((c) => `<tr>${urls ? `<td>${c.photo && urls[c.photo] ? `<img class="thumb" src="${h(urls[c.photo])}" loading="lazy">` : ""}</td>` : ""}
+      <tr>${sel ? `<th class="selc"><input type="checkbox" id="selAll" title="Označi sve otvorene"></th>` : ""}${urls ? "<th></th>" : ""}<th>Kod</th>${withProject ? "<th>Projekt</th>" : ""}<th>Status</th><th>Dolazak</th><th>Manufacturer, type /<br>Proizvođač, tip</th><th>S/N /<br>Ser. br.</th><th>C</th><th>U</th><th>f</th><th>Ispitivanja</th><th>Završni korak</th>${withProject ? "<th>Fakt.</th>" : ""}</tr>
+      ${rows.map((c) => `<tr>${sel ? `<td class="selc">${canFinish(c) ? `<input type="checkbox" class="selcap" value="${c.id}">` : ""}</td>` : ""}${urls ? `<td>${c.photo && urls[c.photo] ? `<img class="thumb" src="${h(urls[c.photo])}" loading="lazy">` : ""}</td>` : ""}
         <td><a class="code" href="#/k/${h(c.code)}">${h(c.code)}</a></td>${withProject ? `<td><a href="#/p/${c.project_id}">${h(c.project_name)}</a></td>` : ""}
         <td>${pill(c.status)}</td><td class="nw">${fmtD(c.arrival_date)}</td><td>${h([c.manufacturer, c.cap_type].filter(Boolean).join(" "))}</td><td>${h(c.serial_no)}</td>
         <td class="num">${h(fmtCap(c.capacitance_uf))}</td><td class="num">${h(fmtVolt(c.voltage_v))} ${h(c.volt_kind)}</td><td class="num">${c.frequency_hz != null ? h(c.frequency_hz + " Hz") : ""}</td><td>${h(c.tests)}</td>
         <td>${c.disposition ? `${h(DISPOSITION[c.disposition])} <span class="muted small">${fmtD(c.disposition_date)}${c.location ? " · " + h(c.location) : ""}</span>` : ""}</td>
         ${withProject ? `<td>${c.project_invoiced ? '<span class="pill yes">da</span>' : ""}</td>` : ""}</tr>`).join("")
         || `<tr><td colspan="12" class="muted">Nema kondenzatora.</td></tr>`}
-    </table></div>`;
+    </table></div>${sel ? bulkForm() : ""}`;
+  }
+  const bulkForm = () => `<form class="card bulk" id="fBulk"><h2>Grupni završni korak <span class="muted small" id="bulkN">(označeno: 0)</span></h2>
+      <p class="muted small" style="margin-top:0">Označite kondenzatore u tablici (kvačica u zaglavlju označava sve otvorene) i odaberite završni korak.</p>
+      <div class="choice">${Object.entries(DISPOSITION).map(([k, v]) => `<label><input type="radio" name="disposition" value="${k}" ${k === "zbrinjavanje" ? "checked" : ""}>${v}</label>`).join("")}</div>
+      <div class="row"><div><label>Datum</label>${dateIn("disposition_date", today())}</div><div><label>Lokacija (za spremanje)</label><input name="location"></div></div>
+      <label>Napomena</label><input name="note">
+      <button class="big" id="bulkBtn" disabled>Zaključi označene</button></form>`;
+  function wireBulk(reload) {
+    const form = $("#fBulk"); if (!form) return;
+    const boxes = () => [...document.querySelectorAll(".selcap")];
+    const picked = () => boxes().filter((b) => b.checked).map((b) => Number(b.value));
+    const upd = () => {
+      const n = picked().length, all = $("#selAll");
+      $("#bulkN").textContent = `(označeno: ${n})`;
+      $("#bulkBtn").disabled = !n; $("#bulkBtn").textContent = n ? `Zaključi označene (${n})` : "Zaključi označene";
+      if (all) { all.checked = n > 0 && n === boxes().length; all.indeterminate = n > 0 && n < boxes().length; }
+    };
+    $("#selAll").addEventListener("change", (e) => { boxes().forEach((b) => (b.checked = e.target.checked)); upd(); });
+    boxes().forEach((b) => b.addEventListener("change", upd));
+    onSubmit(form, async (fd) => {
+      const ids = picked();
+      if (!ids.length) throw new Error("Označite barem jedan kondenzator.");
+      const d = fd.get("disposition");
+      if (!confirm(`Zaključiti ${ids.length} kondenzator(a): ${DISPOSITION[d]}?`)) return;
+      const loc = (fd.get("location") || "").trim(), note = (fd.get("note") || "").trim();
+      await API.finishCaps(ids, { status: "zavrsen", disposition: d, disposition_date: fd.get("disposition_date") || today(), location: loc },
+        DISPOSITION[d] + (loc ? ` — lokacija: ${loc}` : "") + (note ? `. ${note}` : "") + " (grupno)");
+      reload(`${ids.length} kondenzator(a): ${DISPOSITION[d]}.`);
+    });
   }
 
   // ------------------------------------------------------------------ popis s filtrima
@@ -593,7 +626,7 @@
         <div><button>Filtriraj</button> <a class="btn sec" href="#/kondenzatori">Očisti</a></div></div>
         <div style="margin-top:10px"><a href="#" id="xls">⬇ Excel</a> · <a href="#" id="csv">⬇ CSV</a> ·
           <a href="#/ispis?codes=${rows.map((r) => r.code).join(",")}">🏷 Naljepnice za prikazane</a></div></form>
-      ${capTable(rows, null, true)}`);
+      ${capTable(rows, null, true, true)}`);
     $("#f").onsubmit = (e) => {
       e.preventDefault();
       const p = new URLSearchParams();
@@ -602,6 +635,7 @@
     };
     $("#xls").onclick = (e) => { e.preventDefault(); exportXlsx(rows, "kondenzatori"); };
     $("#csv").onclick = (e) => { e.preventDefault(); exportCsv(rows); };
+    wireBulk((msg) => { flash(msg); viewCaps().catch(showError); });
   }
 
   // ------------------------------------------------------------------ izvoz

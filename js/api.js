@@ -163,6 +163,11 @@
     },
 
     // ---------------- događaji i slike
+    // grupni završni korak: isti podaci za više kondenzatora + zapis u povijest svakoga
+    async finishCaps(ids, fields, note) {
+      ok(await sb.from("capacitors").update(fields).in("id", ids));
+      ok(await sb.from("events").insert(ids.map((id) => ({ capacitor_id: id, kind: "zavrsetak", test_type: null, note: note || "", user_name: me ? me.name : "" }))));
+    },
     async addEvent(capId, kind, testType, note) {
       return ok(await sb.from("events").insert({
         capacitor_id: capId, kind, test_type: testType || null, note: note || "",
