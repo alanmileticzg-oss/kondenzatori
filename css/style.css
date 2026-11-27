@@ -112,3 +112,8 @@ td.plan{background:#fffaeb;font-weight:600;white-space:nowrap}
 td.plan.plan-soon{background:#ffe9c2;color:#9a5b00}
 td.plan.plan-late{background:#fde2e1;color:#b42318}
 .planbox input.dtext{background:#fffaeb;border-color:#f0c36d;font-weight:600}
+/* grupni završni korak */
+.selc{width:34px;text-align:center}
+.selc input{width:20px;height:20px;margin:0;cursor:pointer}
+form.bulk{margin-top:14px;border-left:5px solid #22a052}
+form.bulk .choice{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
