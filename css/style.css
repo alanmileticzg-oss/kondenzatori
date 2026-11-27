@@ -8,6 +8,8 @@ header a{color:#dbe4f3;font-weight:500}header a.brand{color:#fff;font-weight:700
 header .who{color:#aab6cc;font-size:13px}
 main{max-width:1200px;margin:0 auto;padding:16px}
 main.narrow{max-width:560px}
+main:not(.narrow){max-width:1680px}
+table.compact{font-size:13px}table.compact th,table.compact td{padding:6px 7px}table.compact th{font-size:11px;letter-spacing:0}table.compact .pill{padding:2px 7px;font-size:11px}
 h1{font-size:22px;margin:4px 0 12px}h2{font-size:17px;margin:0 0 10px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
 label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
